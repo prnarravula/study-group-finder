@@ -7,6 +7,8 @@ const typography = {
   fontLg: moderateScale(20),
   fontXl: moderateScale(24),
   fontXxl: moderateScale(32),
+  font3Xl: moderateScale(36),
+  font4Xl: moderateScale(40),
 
   fontWeightLight: '300',
   fontWeightRegular: '400',

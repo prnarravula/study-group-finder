@@ -29,6 +29,7 @@ export default function App() {
         screenOptions={{ headerShown: false }}
       >
         <Stack.Screen name="HomeScreen" component={HomeScreen} />
+        <Stack.Screen name="SignUpScreen" component={SignUpScreen} /> 
       </Stack.Navigator>
     </NavigationContainer>
   );

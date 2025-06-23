@@ -4,7 +4,7 @@ const colors = {
   background: '#ffffff',
   text: '#212529',
   muted: '#6c757d',
-  border: '#dee2e6',
+  border: '#aaacad',
   white: '#ffffff',
   black: '#000000',
 };
