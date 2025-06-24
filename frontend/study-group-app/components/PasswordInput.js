@@ -3,12 +3,10 @@ import {
   View,
   TextInput,
   TouchableOpacity,
-  Image,
   StyleSheet,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing } from '../constants';
-import EyeFilled from '../assets/eye-filled.png';
-import EyeOutline from '../assets/eye-outline.png';
 
 const PasswordInput = ({ style, ...props }) => {
   const [visible, setVisible] = useState(false);
@@ -22,13 +20,13 @@ const PasswordInput = ({ style, ...props }) => {
         {...props}
       />
       <TouchableOpacity
-        onPress={() => setVisible((v) => !v)}
+        onPress={() => setVisible(v => !v)}
         style={styles.iconWrapper}
       >
-        <Image
-          source={visible ? EyeOutline : EyeFilled}
-          style={styles.icon}
-          resizeMode="contain"
+        <Ionicons
+          name={visible ? 'eye-outline' : 'eye-off-outline'}
+          size={spacing.s5}
+          color={colors.text}
         />
       </TouchableOpacity>
     </View>
@@ -44,22 +42,20 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     borderRadius: spacing.s3,
-    paddingHorizontal: spacing.s4,
+    paddingLeft: spacing.s4,
+    paddingRight: spacing.s2,
     marginBottom: spacing.vs4,
   },
   input: {
     flex: 1,
     height: '100%',
-    padding: 0,       
+    padding: 0,
     color: colors.text,
     fontSize: typography.fontMd,
   },
   iconWrapper: {
     padding: spacing.s2,
-  },
-  icon: {
-    width: spacing.s5, 
-    height: spacing.s5,
+    marginLeft: spacing.s2,
   },
 });
 

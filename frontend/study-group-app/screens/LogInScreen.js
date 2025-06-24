@@ -18,7 +18,7 @@ const LogInScreen = ({ navigation }) => {
 
   const handleLogIn = () => {
     // TODO: replace with real backend auth
-    navigation.navigate('VerifyEmailScreen', { email });
+    navigation.navigate('YourGroupsScreen', { email });
   };
 
   const handleReset = (forgotEmail) => {

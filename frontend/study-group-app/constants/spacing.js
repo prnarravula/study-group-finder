@@ -15,6 +15,7 @@ const spacing = {
   s12: scale(80),
   s13: scale(88),
   s14: scale(96),
+  s15: scale(112),
 
   vs1: verticalScale(4),
   vs2: verticalScale(8),
