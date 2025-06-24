@@ -1,51 +1,57 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthButton from '../components/AuthButton';
 import GroupModal from '../modals/GroupModal';
 import { colors, typography, spacing } from '../constants';
 
 const YourGroupsScreen = ({ navigation }) => {
-  const [modalVisible, setModalVisible] = useState(false);
+  const [createVisible, setCreateVisible] = useState(false);
 
   const handleCreateSubmit = (data) => {
-    // TODO: send `data` to your backend
     console.log('Creating group with:', data);
-    setModalVisible(false);
+    setCreateVisible(false);
   };
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <View style={styles.container}>
         {/* Header */}
         <Text style={styles.header}>Your Groups</Text>
 
-        {/* Placeholder for group items (will be replaced) */}
+        {/* Placeholder */}
         <View style={styles.placeholder} />
 
-        {/* Action buttons */}
+        {/* Buttons */}
         <View style={styles.buttonRow}>
           <AuthButton
             label="Create Group"
-            onPress={() => setModalVisible(true)}
+            onPress={() => setCreateVisible(true)}
             style={styles.createBtn}
           />
           <AuthButton
             label="Join Group"
-            onPress={() => navigation.navigate('JoinGroup')}
+            onPress={() => navigation.navigate('FindGroupScreen')}
             style={styles.joinBtn}
             textStyle={{ color: colors.primary }}
           />
         </View>
-      </ScrollView>
+      </View>
 
-      {/* Create/Edit Group Modal */}
+      {/* Create Group Modal */}
       <GroupModal
-        visible={modalVisible}
+        visible={createVisible}
         mode="create"
-        initialValues={{ name: '', subject: '', description: '', count: 1, enabled: false }}
+        initialValues={{
+          name: '',
+          subject: '',
+          description: '',
+          count: 1,
+          countEnabled: true,
+          isPublic: false,
+        }}
         onSubmit={handleCreateSubmit}
-        onClose={() => setModalVisible(false)}
+        onClose={() => setCreateVisible(false)}
       />
     </SafeAreaView>
   );
@@ -57,20 +63,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   container: {
-    flexGrow: 1,
-    justifyContent: 'space-between',
+    flex: 1,
     paddingHorizontal: spacing.s4,
     paddingTop: spacing.vs4,
-    paddingBottom: spacing.vs4,
+    justifyContent: 'space-between',
   },
   header: {
     fontSize: typography.font4Xl,
     fontWeight: 'bold',
     color: colors.text,
-    marginBottom: spacing.vs4,
   },
   placeholder: {
-    // no flex here – spacing is handled by justifyContent
+    flex: 1,
   },
   buttonRow: {
     flexDirection: 'row',

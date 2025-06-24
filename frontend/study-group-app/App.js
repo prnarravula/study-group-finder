@@ -35,6 +35,7 @@ export default function App() {
         <Stack.Screen name="LogInScreen"       component={LogInScreen} />
         <Stack.Screen name="VerifyEmailScreen" component={VerifyEmailScreen} />
         <Stack.Screen name="BottomNavBar"      component={BottomNavBar} />
+        <Stack.Screen name="FindGroupScreen" component={FindGroupScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
