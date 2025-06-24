@@ -8,7 +8,8 @@ const VerifyEmailScreen = ({ route, navigation }) => {
   const { email } = route.params;
 
   const handleRefresh = () => {
-    // TODO: implement refresh verification logic
+    // Simulate successful verification for frontend flow
+    navigation.replace('BottomNavBar');
   };
 
   return (
@@ -21,21 +22,20 @@ const VerifyEmailScreen = ({ route, navigation }) => {
 
       <Text style={styles.title}>Verify Your Email</Text>
       <Text style={styles.subtitle}>
-        Check your inbox to verify your account.
+        Check your inbox ({email}) to verify your account.
       </Text>
 
       <View style={styles.buttonContainer}>
         <AuthButton
           label="Refresh"
           onPress={handleRefresh}
-          style={styles.refreshBtn}
+          style={{ marginTop: spacing.vs6 }}
         />
       </View>
 
       <TouchableOpacity onPress={() => {}} activeOpacity={0.6}>
         <Text style={styles.link}>Resend Email</Text>
       </TouchableOpacity>
-
       <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.6}>
         <Text style={styles.link}>Cancel</Text>
       </TouchableOpacity>
@@ -47,11 +47,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: spacing.s4,
-    justifyContent: 'center',
+    backgroundColor: colors.background,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
-    marginTop: spacing.vs11,
+    marginTop: spacing.vs4,
     fontSize: typography.fontXxl,
     fontWeight: 'bold',
     color: colors.text,
@@ -63,15 +64,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   buttonContainer: {
-    marginTop: spacing.vs3,
     width: '100%',
   },
-  refreshBtn: {
-    backgroundColor: colors.primary,
-  },
   link: {
-    marginTop: spacing.vs4,
-    fontSize: typography.fontLg,
+    marginTop: spacing.vs3,
+    fontSize: typography.fontMd,
     color: colors.primary,
     textDecorationLine: 'underline',
   },

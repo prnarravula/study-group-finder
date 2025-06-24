@@ -1,9 +1,10 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import BottomNavBar from './navigation/BottomNavBar';
 
 //screens
 import CalendarScreen from './screens/CalendarScreen';
@@ -24,14 +25,16 @@ const Stack = createNativeStackNavigator();
 export default function App() {
   return (
     <NavigationContainer>
+      <StatusBar style="auto" />
       <Stack.Navigator
         initialRouteName="HomeScreen"
         screenOptions={{ headerShown: false }}
       >
-        <Stack.Screen name="HomeScreen" component={HomeScreen} />
-        <Stack.Screen name="SignUpScreen" component={SignUpScreen} /> 
-        <Stack.Screen name="LogInScreen" component={LogInScreen} /> 
-        <Stack.Screen name="VerifyEmailScreen" component={VerifyEmailScreen} /> 
+        <Stack.Screen name="HomeScreen"        component={HomeScreen} />
+        <Stack.Screen name="SignUpScreen"      component={SignUpScreen} />
+        <Stack.Screen name="LogInScreen"       component={LogInScreen} />
+        <Stack.Screen name="VerifyEmailScreen" component={VerifyEmailScreen} />
+        <Stack.Screen name="BottomNavBar"      component={BottomNavBar} />
       </Stack.Navigator>
     </NavigationContainer>
   );
