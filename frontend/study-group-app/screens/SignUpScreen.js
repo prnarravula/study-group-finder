@@ -5,12 +5,10 @@ import {
   TouchableOpacity,
   StyleSheet
 } from 'react-native';
-import InputField from '../components/InputField';
+import InputField   from '../components/InputField';
 import PasswordInput from '../components/PasswordInput';
-import SignUpButton from '../components/SignUpButton';
-import colors from '../constants/colors';
-import spacing from '../constants/spacing';
-import typography from '../constants/typography';
+import AuthButton    from '../components/AuthButton';
+import { spacing, colors, typography } from '../constants';
 
 const SignUpScreen = ({ navigation }) => {
   const [fullName,        setFullName]        = useState('');
@@ -59,7 +57,11 @@ const SignUpScreen = ({ navigation }) => {
         onChangeText={setConfirmPassword}
       />
 
-      <SignUpButton onPress={handleSignUp} />
+      {/* ← use AuthButton here */}
+      <AuthButton
+        label="Sign Up"
+        onPress={handleSignUp}
+      />
 
       <TouchableOpacity
         onPress={() => navigation.navigate('LogInScreen')}

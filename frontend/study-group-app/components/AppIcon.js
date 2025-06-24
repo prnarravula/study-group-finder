@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, StyleSheet } from 'react-native';
-import spacing from '../constants/spacing';
+import { spacing, colors, typography } from '../constants';
 import { verticalScale } from 'react-native-size-matters';
 
 const AppIcon = ({ size = verticalScale(150) }) => (

@@ -22,8 +22,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s14,
     borderRadius: spacing.s3,
     marginVertical: spacing.vs1,
-    alignSelf: 'stretch',
     alignItems: 'center',
+    width: '100%',
   },
   text: {
     color: colors.white,
