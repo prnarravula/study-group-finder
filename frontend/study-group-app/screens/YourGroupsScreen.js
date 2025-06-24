@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AuthButton from '../components/AuthButton';
+import GroupModal from '../modals/GroupModal';
 import { colors, typography, spacing } from '../constants';
 
 const YourGroupsScreen = ({ navigation }) => {
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const handleCreateSubmit = (data) => {
+    // TODO: send `data` to your backend
+    console.log('Creating group with:', data);
+    setModalVisible(false);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -18,7 +27,7 @@ const YourGroupsScreen = ({ navigation }) => {
         <View style={styles.buttonRow}>
           <AuthButton
             label="Create Group"
-            onPress={() => navigation.navigate('CreateGroup')}
+            onPress={() => setModalVisible(true)}
             style={styles.createBtn}
           />
           <AuthButton
@@ -29,6 +38,15 @@ const YourGroupsScreen = ({ navigation }) => {
           />
         </View>
       </ScrollView>
+
+      {/* Create/Edit Group Modal */}
+      <GroupModal
+        visible={modalVisible}
+        mode="create"
+        initialValues={{ name: '', subject: '', description: '', count: 1, enabled: false }}
+        onSubmit={handleCreateSubmit}
+        onClose={() => setModalVisible(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -40,10 +58,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flexGrow: 1,
-    justifyContent: 'space-between',         // ← new: push buttons to bottom
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.s4,
     paddingTop: spacing.vs4,
-    paddingBottom: spacing.vs4,              // ← reduced bottom padding
+    paddingBottom: spacing.vs4,
   },
   header: {
     fontSize: typography.font4Xl,
@@ -57,7 +75,6 @@ const styles = StyleSheet.create({
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    // marginTop removed so buttons sit flush to bottom of scroll content
   },
   createBtn: {
     flex: 1,
