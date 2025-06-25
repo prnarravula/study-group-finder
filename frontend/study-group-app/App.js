@@ -9,7 +9,6 @@ import BottomNavBar from './navigation/BottomNavBar';
 //screens
 import CalendarScreen from './screens/CalendarScreen';
 import ChatsScreen from './screens/ChatsScreen';
-import EditInfoScreen from './screens/EditInfoScreen';
 import FindGroupScreen from './screens/FindGroupScreen';
 import HomeScreen from './screens/HomeScreen';
 import IndChatScreen from './screens/IndChatScreen';

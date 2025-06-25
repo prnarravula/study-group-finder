@@ -33,6 +33,7 @@ const spacing = {
   vs14: verticalScale(72),
   vs15: verticalScale(80),
   vs16: verticalScale(96),
+  vs17: verticalScale(112),
 };
 
 export default spacing;
