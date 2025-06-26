@@ -19,6 +19,8 @@ import SignUpScreen from './frontend/screens/SignUpScreen';
 import VerifyEmailScreen from './frontend/screens/VerifyEmailScreen';
 import YourGroupsScreen from './frontend/screens/YourGroupsScreen';
 
+//backend
+
 const Stack = createNativeStackNavigator();
 
 export default function App() {
@@ -39,3 +41,18 @@ export default function App() {
     </NavigationContainer>
   );
 }
+
+
+/*
+export default function App() {
+  useEffect(() => {
+    if (auth?.app?.name) {
+      console.log('✅ Firebase is initialized:', auth.app.name);
+    } else {
+      console.log('❌ Firebase is NOT initialized');
+    }
+  }, []);
+
+  return null;
+}
+*/
