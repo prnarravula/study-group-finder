@@ -9,6 +9,8 @@ import InputField   from '../components/InputField';
 import PasswordInput from '../components/PasswordInput';
 import AuthButton    from '../components/AuthButton';
 import { spacing, colors, typography } from '../constants';
+import { auth } from '../../backend/firebaseConfig.js';
+import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
 
 const SignUpScreen = ({ navigation }) => {
   const [fullName,        setFullName]        = useState('');
@@ -16,12 +18,38 @@ const SignUpScreen = ({ navigation }) => {
   const [password,        setPassword]        = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const isPasswordStrong = (pw) => {
+    return pw.length >= 8 &&
+          /[A-Z]/.test(pw) &&  
+          /[a-z]/.test(pw) && 
+          /[0-9]/.test(pw) &&  
+          /[^A-Za-z0-9]/.test(pw);
+  };
+
+  const trimName = fullName.trim();
+  const trimEmail = email.trim();
+  const trimPassword = password.trim();
+  const trimcPassword = confirmPassword.trim();
+
   const handleSignUp = async () => {
-    if (password !== confirmPassword) {
+    if(!trimName || !trimEmail || !trimPassword || !trimcPassword){
+      return alert('Fill out all fields');
+    }else if(trimEmail.includes(' ') || trimPassword.includes(' ') || trimcPassword.includes(' ')){
+      return alert('Remove spaces from passwords/emails');
+    }else if(trimPassword !== trimcPassword){
       return alert('Passwords do not match');
+    }else if(!isPasswordStrong(trimPassword)) {
+      return alert('Password must be 8+ characters, include uppercase, lowercase, number, and symbol');
     }
-    // → TODO: call backend signup API here
-    navigation.navigate('VerifyEmailScreen', { email });
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, trimEmail, trimPassword);
+      await sendEmailVerification(userCredential.user);
+      navigation.navigate('VerifyEmailScreen', { email: trimEmail });
+    } catch (error) {
+      alert(error.message);
+    }
+
   };
 
   return (

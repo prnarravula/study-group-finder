@@ -42,17 +42,3 @@ export default function App() {
   );
 }
 
-
-/*
-export default function App() {
-  useEffect(() => {
-    if (auth?.app?.name) {
-      console.log('✅ Firebase is initialized:', auth.app.name);
-    } else {
-      console.log('❌ Firebase is NOT initialized');
-    }
-  }, []);
-
-  return null;
-}
-*/
