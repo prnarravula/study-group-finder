@@ -22,7 +22,7 @@ const VerifyEmailScreen = ({ route, navigation }) => {
 
       <Text style={styles.title}>Verify Your Email</Text>
       <Text style={styles.subtitle}>
-        Check your inbox ({email}) to verify your account.
+        Check your inbox ({email}) to verify your account (Check Spam).
       </Text>
 
       <View style={styles.buttonContainer}>

@@ -11,6 +11,8 @@ import AuthButton    from '../components/AuthButton';
 import { spacing, colors, typography } from '../constants';
 import { auth } from '../../backend/firebaseConfig.js';
 import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../backend/firebaseConfig';
 
 const SignUpScreen = ({ navigation }) => {
   const [fullName,        setFullName]        = useState('');
@@ -26,14 +28,23 @@ const SignUpScreen = ({ navigation }) => {
           /[^A-Za-z0-9]/.test(pw);
   };
 
-  const trimName = fullName.trim();
-  const trimEmail = email.trim();
-  const trimPassword = password.trim();
-  const trimcPassword = confirmPassword.trim();
-
   const handleSignUp = async () => {
+    const trimName = fullName.trim();
+    const trimEmail = email.trim();
+    const trimPassword = password.trim();
+    const trimcPassword = confirmPassword.trim();
+    const domain = trimEmail.split('@')[1]?.toLowerCase();
+
     if(!trimName || !trimEmail || !trimPassword || !trimcPassword){
       return alert('Fill out all fields');
+    }else if(!domain){
+      return alert('Invalid email format')
+    }
+
+    const domainCol= await getDoc(doc(db, 'validDomains', domain));
+
+    if(!domainCol.exists()){
+      return alert('This domain is not supported. Please use a valid university email.');
     }else if(trimEmail.includes(' ') || trimPassword.includes(' ') || trimcPassword.includes(' ')){
       return alert('Remove spaces from passwords/emails');
     }else if(trimPassword !== trimcPassword){
@@ -45,9 +56,19 @@ const SignUpScreen = ({ navigation }) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, trimEmail, trimPassword);
       await sendEmailVerification(userCredential.user);
+
+      await setDoc(doc(db, 'pendingVerifications', userCredential.user.uid), {
+        email: trimEmail,
+        createdAt: serverTimestamp(),
+      });  
+
       navigation.navigate('VerifyEmailScreen', { email: trimEmail });
     } catch (error) {
-      alert(error.message);
+      if(error.code === 'auth/email-already-in-use'){
+        alert('Email already in use')
+      }else{
+        alert(error.message);
+      }
     }
 
   };
