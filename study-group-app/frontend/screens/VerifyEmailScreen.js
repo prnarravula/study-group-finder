@@ -3,14 +3,45 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AuthButton from '../components/AuthButton';
 import { colors, typography, spacing } from '../constants';
+import { auth } from '../../backend/firebaseConfig.js';
+import { sendEmailVerification, signInWithEmailAndPassword } from 'firebase/auth';
 
 const VerifyEmailScreen = ({ route, navigation }) => {
   const { email } = route.params;
 
-  const handleRefresh = () => {
-    // Simulate successful verification for frontend flow
-    navigation.replace('BottomNavBar');
+  const handleRefresh = async() => {
+    try {
+      await auth.currentUser.reload()
+      if(auth.currentUser.emailVerified){
+        navigation.replace('BottomNavBar')
+      }else{
+        alert('Your email is still not verified. Please check your inbox or spam folder.');
+      }
+    } catch (error){
+      alert('Something went wrong. Try again after a minute')
+    }
   };
+  
+  const resendEmail = async() => {
+    try {
+      await auth.currentUser.reload()
+      if(auth.currentUser.emailVerified){
+        alert('Already verified!')
+        return navigation.replace('BottomNavBar')
+      }
+    } catch (error){
+      return
+    }
+
+    try {
+      await sendEmailVerification(auth.currentUser)
+      alert('Verification email resent. Check your inbox or spam folder. (Note that the link says that it expired even though it did not)')
+    } catch (error) {
+      alert('Failed to resend verification email: ' + error.message)
+    }
+  }
+
+
 
   return (
     <View style={styles.container}>
@@ -22,7 +53,7 @@ const VerifyEmailScreen = ({ route, navigation }) => {
 
       <Text style={styles.title}>Verify Your Email</Text>
       <Text style={styles.subtitle}>
-        Check your inbox ({email}) to verify your account (Check Spam).
+        Check your inbox ({email}) to verify your account (Check spam and/or wait a minute).
       </Text>
 
       <View style={styles.buttonContainer}>
@@ -33,7 +64,7 @@ const VerifyEmailScreen = ({ route, navigation }) => {
         />
       </View>
 
-      <TouchableOpacity onPress={() => {}} activeOpacity={0.6}>
+      <TouchableOpacity onPress={resendEmail} activeOpacity={0.6}>
         <Text style={styles.link}>Resend Email</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={() => navigation.goBack()} activeOpacity={0.6}>

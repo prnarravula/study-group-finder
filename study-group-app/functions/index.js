@@ -20,7 +20,7 @@ exports.deleteUnverifiedUsers = onSchedule("every 1 minutes", async () => {
 
     const ageMinutes = (now - createdAt.getTime()) / 60000;
 
-    if (ageMinutes >= 5) {
+    if (ageMinutes >= 10) {
       try {
         const user = await auth.getUser(uid);
         if (!user.emailVerified) {

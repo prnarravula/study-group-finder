@@ -10,21 +10,40 @@ import PasswordInput         from '../components/PasswordInput';
 import AuthButton            from '../components/AuthButton';
 import ResetPasswordModal    from '../modals/ResetPasswordModal';
 import { spacing, colors, typography } from '../constants';
+import { auth } from '../../backend/firebaseConfig.js';
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from 'firebase/auth';
+
 
 const LogInScreen = ({ navigation }) => {
   const [email, setEmail]           = useState('');
   const [password, setPassword]     = useState('');
   const [showForgot, setShowForgot] = useState(false);
 
-  const handleLogIn = () => {
-    // TODO: replace with real backend auth
-    navigation.replace('BottomNavBar')
+  const handleLogIn = async () => {
+    const trimEmail = email.trim().toLowerCase();
+    const trimPassword = password.trim();
+    try {
+      const user = await signInWithEmailAndPassword(auth, trimEmail, trimPassword);
+
+      if(!user.user.emailVerified){
+        alert('Please verify your email before logging in')
+        return;
+      }
+
+      navigation.replace('BottomNavBar');
+    } catch (error){
+      alert('Sign in failed: ' + error.message)
+    }
   };
 
-  const handleReset = (forgotEmail) => {
-    // TODO: call your reset-password API with forgotEmail
-    navigation.navigate('VerifyEmailScreen', { email: forgotEmail });
-    setShowForgot(false);
+  const handleReset = async (forgotEmail) => {
+    try {
+      await sendPasswordResetEmail(auth, forgotEmail)
+      alert('Reset email sent. Check your inbox or spam')
+      setShowForgot(false)
+    }catch (error){
+      alert('Error: ' + error.message)
+    }
   };
 
   return (
