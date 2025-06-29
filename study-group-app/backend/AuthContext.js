@@ -1,6 +1,6 @@
-import React, { createContext, useEffect, useState } from 'react';
+import React, { createContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { auth } from './firebaseConfig';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onIdTokenChanged } from 'firebase/auth';
 
 export const AuthContext = createContext();
 
@@ -9,33 +9,34 @@ export const AuthProvider = ({ children }) => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          await firebaseUser.reload(); // Always reload to check latest verification
-        } catch (e) {
-          console.log('Error reloading user:', e);
-        }
-      }
-      setUser(auth.currentUser); // Always use the updated currentUser
+    // Listen only when the ID token truly changes (sign-in, sign-out, or after reload())
+    const unsubscribe = onIdTokenChanged(auth, (freshUser) => {
+      setUser(freshUser);
       setChecking(false);
     });
-
-    return unsubscribe;
+    return unsubscribe; // Clean up listener on unmount
   }, []);
 
-  const refreshUser = async () => {
-    if (auth.currentUser) {
-      setChecking(true); // trigger state change for rerender
-      await auth.currentUser.reload();
+  // Only reload on explicit user action (e.g. tapping “Refresh”)
+  const refreshUser = useCallback(async () => {
+    if (!auth.currentUser) return;
+    setChecking(true);
+    try {
+      await auth.currentUser.reload(); // Fetch latest profile (emailVerified, etc.)
       setUser(auth.currentUser);
-      setChecking(false); // stop checking again
+    } finally {
+      setChecking(false);
     }
-  };
+  }, []);
 
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  const contextValue = useMemo(
+    () => ({ user, checking, refreshUser }),
+    [user, checking, refreshUser]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, checking, refreshUser }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
