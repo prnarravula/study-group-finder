@@ -1,29 +1,81 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';  // ← import hook
+import { useNavigation } from '@react-navigation/native';
 import EditInfoModal from '../modals/EditInfoModal';
 import { colors, typography, spacing } from '../constants';
 
-const ProfileScreen = () => {
-  const navigation = useNavigation();  // ← get navigation
-  const [user, setUser] = useState({
-    name: 'Pranav Narravula',
-    email: 'john.doe@university.edu',
-    phone: '',
-  });
-  const [modalVisible, setModalVisible] = useState(false);
+// backend
+import { signOut, deleteUser, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
+import { auth } from '../../backend/firebaseConfig';
 
-  const handleSave = ({ name, email, phone }) => {
-    setUser({ name, email, phone });
+const ProfileScreen = () => {
+  const navigation = useNavigation();
+  const [modalVisible, setModalVisible] = useState(false);
+  const currentUser = auth.currentUser;
+
+  const handleSave = async ({ name }) => {
+    try {
+      await updateProfile(currentUser, { displayName: name });
+      alert('Name updated!');
+    } catch (error) {
+      alert('Failed to update name: ' + error.message);
+    }
     setModalVisible(false);
   };
+
+  const handleReset = async () => {
+    try {
+      await sendPasswordResetEmail(auth, currentUser.email);
+      alert('Reset email sent. Check your inbox or spam.');
+    } catch (error) {
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleLogOut = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      alert('Error signing out: ' + error.message);
+    }
+  };
+
+const handleDeleteAccount = async () => {
+  if (!currentUser) {
+    alert("No user is currently signed in.");
+    return;
+  }
+
+  Alert.alert(
+    "Confirm Deletion",
+    "Are you sure you want to delete your account? This cannot be undone.",
+    [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteUser(currentUser);
+            alert("Your account has been deleted.");
+          } catch (error) {
+            if (error.code === 'auth/requires-recent-login') {
+              alert("Please log in again to delete your account.");
+            } else {
+              alert("Error deleting account: " + error.message);
+            }
+          }
+        },
+      },
+    ]
+  );
+};
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        {/* Avatar */}
         <Ionicons
           name="person-circle-outline"
           size={spacing.vs17}
@@ -31,44 +83,30 @@ const ProfileScreen = () => {
           style={styles.avatar}
         />
 
-        {/* Name & Email */}
-        <Text style={styles.name}>{user.name}</Text>
-        <Text style={styles.email}>{user.email}</Text>
+        <Text style={styles.name}>{currentUser?.displayName || 'Unnamed User'}</Text>
+        <Text style={styles.email}>{currentUser?.email || 'No email'}</Text>
 
-        {/* Last Verified row */}
-        <View style={styles.row}>
-          <Text style={styles.label}>Last Verified:</Text>
-          <Text style={styles.value}>July 1, 2025</Text>
-          <TouchableOpacity
-            onPress={() =>
-              navigation.navigate('VerifyEmailScreen', { email: user.email })
-            }
-          >
-            <Text style={styles.link}>Reverify</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Action Links */}
-        <TouchableOpacity onPress={() => navigation.navigate('VerifyEmailScreen', { email: user.email })}>
+        <TouchableOpacity onPress={handleReset}>
           <Text style={styles.link}>Reset Password</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => { /* handle logout */ }}>
+        <TouchableOpacity onPress={handleLogOut}>
           <Text style={styles.link}>Log Out</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => { /* handle delete */ }}>
+        <TouchableOpacity onPress={handleDeleteAccount}>
           <Text style={styles.link}>Delete Account</Text>
         </TouchableOpacity>
-
-        {/* Edit Information link */}
         <TouchableOpacity onPress={() => setModalVisible(true)}>
           <Text style={styles.link}>Edit Information</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Edit Information Modal */}
       <EditInfoModal
         visible={modalVisible}
-        initialValues={user}
+        initialValues={{
+          name: currentUser?.displayName || '',
+          email: currentUser?.email || '',
+          phone: '',
+        }}
         onSubmit={handleSave}
         onClose={() => setModalVisible(false)}
       />
@@ -101,21 +139,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontXl,
     color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: spacing.vs6,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: spacing.vs4,
-  },
-  label: {
-    fontSize: typography.fontLg,
-    color: colors.text,
-  },
-  value: {
-    fontSize: typography.fontLg,
-    color: colors.text,
-    marginHorizontal: spacing.s2,
+    marginBottom: spacing.vs3,
   },
   link: {
     fontSize: typography.fontLg,

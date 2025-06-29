@@ -29,8 +29,7 @@ const LogInScreen = ({ navigation }) => {
         alert('Please verify your email before logging in')
         return;
       }
-
-      navigation.replace('BottomNavBar');
+      await auth.currentUser.reload();
     } catch (error){
       alert('Sign in failed: ' + error.message)
     }

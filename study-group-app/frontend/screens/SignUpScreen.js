@@ -10,7 +10,7 @@ import PasswordInput from '../components/PasswordInput';
 import AuthButton    from '../components/AuthButton';
 import { spacing, colors, typography } from '../constants';
 import { auth } from '../../backend/firebaseConfig.js';
-import { createUserWithEmailAndPassword, sendEmailVerification } from 'firebase/auth';
+import { createUserWithEmailAndPassword, sendEmailVerification, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../backend/firebaseConfig';
 
@@ -55,6 +55,7 @@ const SignUpScreen = ({ navigation }) => {
 
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, trimEmail, trimPassword);
+      await updateProfile(userCredential.user, { displayName: trimName });
       await sendEmailVerification(userCredential.user);
 
       await setDoc(doc(db, 'pendingVerifications', userCredential.user.uid), {
