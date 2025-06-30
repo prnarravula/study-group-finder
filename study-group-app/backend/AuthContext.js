@@ -1,6 +1,6 @@
-import React, { createContext, useEffect, useState, useMemo, useCallback } from 'react';
+import React, { createContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { auth } from './firebaseConfig';
-import { onIdTokenChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 
 export const AuthContext = createContext();
 
@@ -9,31 +9,37 @@ export const AuthProvider = ({ children }) => {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Listen only when the ID token truly changes (sign-in, sign-out, or after reload())
-    const unsubscribe = onIdTokenChanged(auth, (freshUser) => {
-      setUser(freshUser);
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          await firebaseUser.reload(); // Ensure latest emailVerified
+        } catch (e) {
+          console.log('Error reloading user:', e);
+        }
+      }
+      setUser(auth.currentUser);
       setChecking(false);
     });
-    return unsubscribe; // Clean up listener on unmount
+
+    return unsubscribe;
   }, []);
 
-  // Only reload on explicit user action (e.g. tapping “Refresh”)
   const refreshUser = useCallback(async () => {
     if (!auth.currentUser) return;
     setChecking(true);
     try {
-      await auth.currentUser.reload(); // Fetch latest profile (emailVerified, etc.)
+      await auth.currentUser.reload();
       setUser(auth.currentUser);
     } finally {
       setChecking(false);
     }
   }, []);
 
-  // Memoize context value to prevent unnecessary re-renders of consumers
-  const contextValue = useMemo(
-    () => ({ user, checking, refreshUser }),
-    [user, checking, refreshUser]
-  );
+  const contextValue = useMemo(() => ({
+    user,
+    checking,
+    refreshUser,
+  }), [user, checking, refreshUser]);
 
   return (
     <AuthContext.Provider value={contextValue}>
