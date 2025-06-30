@@ -26,9 +26,13 @@ import {
   updateDoc,
   arrayUnion,
   doc,
+  deleteDoc,
+  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../backend/firebaseConfig';
 import { AuthContext } from '../../backend/AuthContext';
+import { generateUniqueJoinCode } from '../components/GenerateUniqueJoinCode';
+
 
 export default function YourGroupsScreen({ navigation }) {
   const { user, checking } = useContext(AuthContext);
@@ -63,6 +67,9 @@ export default function YourGroupsScreen({ navigation }) {
     } = data;
 
     try {
+
+      const joinCode = await generateUniqueJoinCode()
+      
       await addDoc(collection(db, 'groups'), {
         name,
         subject,
@@ -70,9 +77,10 @@ export default function YourGroupsScreen({ navigation }) {
         maxStudentCount,
         maxCountEnabled,
         isPublic,
-        ownerId: user.uid,           // ← new ownerId
-        adminIds: [user.uid],        // ← new array of admins
-        memberIds: [user.uid],       // ← membership
+        ownerId: user.uid,
+        adminIds: [user.uid], 
+        memberIds: [user.uid],
+        joinCode,
         createdAt: serverTimestamp(),
       });
       setCreateVisible(false);
@@ -94,20 +102,35 @@ export default function YourGroupsScreen({ navigation }) {
     }
   };
 
-  const handleDelete = async group => {
-    try {
-      await doc(db, 'groups', group.id).delete();
-      Alert.alert('Deleted', group.name);
-    } catch (e) {
-      console.error('Delete failed:', e);
-      Alert.alert('Error', 'Could not delete group.');
-    }
+  const handleDelete = (group) => {
+    Alert.alert(
+      'Delete Group',
+      `Are you sure you want to delete "${group.name}"? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'groups', group.id));
+            } catch (e) {
+              console.error('Delete failed:', e);
+              Alert.alert('Error', 'Could not delete group. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleLeave = async group => {
+    if(group.memberIds.length <= 1){
+      return handleDelete(group)
+    }
     try {
       await updateDoc(doc(db, 'groups', group.id), {
-        memberIds: arrayUnion() // implement removal via arrayRemove if desired
+        memberIds: arrayRemove(user.uid) // implement removal via arrayRemove if desired
       });
       Alert.alert('Left group', group.name);
     } catch (e) {
