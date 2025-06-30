@@ -73,7 +73,7 @@ export default function GroupModal({
               value={name}
               onChangeText={setName}
               placeholder="Enter group name"
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={colors.text}
             />
 
             <Text style={styles.label}>Subject</Text>
@@ -86,7 +86,7 @@ export default function GroupModal({
                   setShowSubjectDropdown(true);
                 }}
                 placeholder="Type or select subject"
-                placeholderTextColor={colors.textSecondary}
+                placeholderTextColor={colors.text}
                 onFocus={() => setShowSubjectDropdown(true)}
               />
               <TouchableOpacity
@@ -129,7 +129,7 @@ export default function GroupModal({
               value={description}
               onChangeText={setDescription}
               placeholder="Enter description"
-              placeholderTextColor={colors.textSecondary}
+              placeholderTextColor={colors.text}
               multiline
             />
 

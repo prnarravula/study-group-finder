@@ -7,11 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   FlatList,
-  TouchableOpacity,
-  Platform,
-  ActionSheetIOS,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import AuthButton from '../components/AuthButton';
 import GroupModal from '../modals/GroupModal';
 import GroupCard from '../components/GroupCard';
@@ -25,18 +21,23 @@ import {
   onSnapshot,
   updateDoc,
   arrayUnion,
+  arrayRemove,
   doc,
   deleteDoc,
-  arrayRemove,
 } from 'firebase/firestore';
 import { db } from '../../backend/firebaseConfig';
 import { AuthContext } from '../../backend/AuthContext';
 import { generateUniqueJoinCode } from '../components/GenerateUniqueJoinCode';
 
-
 export default function YourGroupsScreen({ navigation }) {
   const { user, checking } = useContext(AuthContext);
-  const [createVisible, setCreateVisible] = useState(false);
+
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+  const [modalInitial, setModalInitial] = useState({});
+  const [editingGroup, setEditingGroup] = useState(null);
+
   const [groups, setGroups] = useState([]);
 
   useEffect(() => {
@@ -52,60 +53,73 @@ export default function YourGroupsScreen({ navigation }) {
     );
   }, [checking, user]);
 
+  // Create flow
+  const handleCreate = () => {
+    setModalMode('create');
+    setModalInitial({
+      name: '',
+      subject: '',
+      description: '',
+      count: 1,
+      countEnabled: true,
+      isPublic: false,
+    });
+    setModalVisible(true);
+  };
   const handleCreateSubmit = async data => {
-    if (!user) {
-      Alert.alert('Error', 'You must be signed in to create a group.');
-      return;
-    }
-    const {
-      name,
-      subject,
-      description,
-      count: maxStudentCount,
-      countEnabled: maxCountEnabled,
-      isPublic,
-    } = data;
-
     try {
-
-      const joinCode = await generateUniqueJoinCode()
-      
+      const joinCode = await generateUniqueJoinCode();
       await addDoc(collection(db, 'groups'), {
-        name,
-        subject,
-        description,
-        maxStudentCount,
-        maxCountEnabled,
-        isPublic,
+        ...data,
         ownerId: user.uid,
-        adminIds: [user.uid], 
+        adminIds: [user.uid],
         memberIds: [user.uid],
         joinCode,
         createdAt: serverTimestamp(),
       });
-      setCreateVisible(false);
+      setModalVisible(false);
     } catch (e) {
-      console.error('Create group failed:', e);
-      Alert.alert('Error', 'Could not create group. Please try again.');
+      console.error('Create failed:', e);
+      Alert.alert('Error', 'Could not create group.');
     }
   };
 
-  const handleJoinGroup = async groupId => {
+  // Edit flow
+  const handleEdit = group => {
+    setModalMode('edit');
+    setEditingGroup(group);
+    setModalInitial({
+      name: group.name,
+      subject: group.subject,
+      description: group.description || '',
+      count: group.maxStudentCount,
+      countEnabled: group.maxCountEnabled,
+      isPublic: group.isPublic,
+    });
+    setModalVisible(true);
+  };
+  const handleEditSubmit = async data => {
     try {
-      await updateDoc(doc(db, 'groups', groupId), {
-        memberIds: arrayUnion(user.uid),
+      await updateDoc(doc(db, 'groups', editingGroup.id), {
+        name: data.name,
+        subject: data.subject,
+        description: data.description,
+        maxStudentCount: data.count,
+        maxCountEnabled: data.countEnabled,
+        isPublic: data.isPublic,
       });
-      Alert.alert('Joined!', 'You are now a member.');
+      setModalVisible(false);
     } catch (e) {
-      console.error('Join failed:', e);
-      Alert.alert('Error', 'Could not join group.');
+      console.error('Edit failed:', e);
+      Alert.alert('Error', 'Could not save changes.');
     }
   };
 
-  const handleDelete = (group) => {
+  // Delete, Leave, GetCode
+  const handleDelete = group => {
     Alert.alert(
       'Delete Group',
-      `Are you sure you want to delete "${group.name}"? This cannot be undone.`,
+      `Delete "${group.name}"? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -116,36 +130,41 @@ export default function YourGroupsScreen({ navigation }) {
               await deleteDoc(doc(db, 'groups', group.id));
             } catch (e) {
               console.error('Delete failed:', e);
-              Alert.alert('Error', 'Could not delete group. Please try again.');
+              Alert.alert('Error', 'Could not delete group.');
             }
           },
         },
       ]
     );
   };
-
-  const handleLeave = async group => {
-    if(group.memberIds.length <= 1){
-      return handleDelete(group)
-    }
-    try {
-      await updateDoc(doc(db, 'groups', group.id), {
-        memberIds: arrayRemove(user.uid) // implement removal via arrayRemove if desired
-      });
-      Alert.alert('Left group', group.name);
-    } catch (e) {
-      console.error('Leave failed:', e);
-      Alert.alert('Error', 'Could not leave group.');
-    }
+  const handleLeave = group => {
+    const members = group.memberIds || [];
+    if (members.length <= 1) return handleDelete(group);
+    Alert.alert(
+      'Leave Group',
+      `Leave "${group.name}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Leave',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await updateDoc(doc(db, 'groups', group.id), {
+                memberIds: arrayRemove(user.uid),
+              });
+            } catch (e) {
+              console.error('Leave failed:', e);
+              Alert.alert('Error', 'Could not leave group.');
+            }
+          },
+        },
+      ]
+    );
   };
-
   const handleGetCode = group => {
     Alert.alert('Group code', group.joinCode || 'No code set');
   };
-
-  const onEdit = group => navigation.navigate('EditGroup', { groupId: group.id });
-  const onViewMembers = group =>
-    navigation.navigate('GroupMembers', { groupId: group.id });
 
   if (checking) {
     return (
@@ -170,8 +189,10 @@ export default function YourGroupsScreen({ navigation }) {
             onLeave={handleLeave}
             onGetCode={handleGetCode}
             onDelete={handleDelete}
-            onEdit={onEdit}
-            onViewMembers={onViewMembers}
+            onEdit={handleEdit}             // <-- use handleEdit here
+            onViewMembers={g =>
+              navigation.navigate('GroupMembers', { groupId: g.id })
+            }
           />
         )}
         contentContainerStyle={styles.listContent}
@@ -187,7 +208,7 @@ export default function YourGroupsScreen({ navigation }) {
       <View style={styles.buttonRow}>
         <AuthButton
           label="Create Group"
-          onPress={() => setCreateVisible(true)}
+          onPress={handleCreate}
           style={styles.createBtn}
         />
         <AuthButton
@@ -199,18 +220,13 @@ export default function YourGroupsScreen({ navigation }) {
       </View>
 
       <GroupModal
-        visible={createVisible}
-        mode="create"
-        initialValues={{
-          name: '',
-          subject: '',
-          description: '',
-          count: 1,
-          countEnabled: true,
-          isPublic: false,
-        }}
-        onSubmit={handleCreateSubmit}
-        onClose={() => setCreateVisible(false)}
+        visible={modalVisible}
+        mode={modalMode}
+        initialValues={modalInitial}
+        onSubmit={
+          modalMode === 'create' ? handleCreateSubmit : handleEditSubmit
+        }
+        onClose={() => setModalVisible(false)}
       />
     </SafeAreaView>
   );

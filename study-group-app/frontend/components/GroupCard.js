@@ -1,5 +1,13 @@
 import React, { useContext } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, ActionSheetIOS, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  ActionSheetIOS,
+  Alert,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing } from '../constants';
 import { AuthContext } from '../../backend/AuthContext';
@@ -16,35 +24,43 @@ export default function GroupCard({
 
   // Determine the highest role
   const isOwner = user.uid === group.ownerId;
-  const isAdmin = !isOwner && Array.isArray(group.adminIds) && group.adminIds.includes(user.uid);
-  // members are everyone else in memberIds (we assume they can see the card)
-  
-  const showMenu = () => {
-    // Base actions for all members
-    const options = ['Leave Group', 'Get Code'];
-    // Owner/admin actions
-    if (isOwner || isAdmin) {
-      options.push('Delete Group', 'Edit Group', 'View Members');
+  const isAdmin =
+    Array.isArray(group.adminIds) && group.adminIds.includes(user.uid);
+  // Base actions
+  const base = ['Leave Group', 'Get Code'];
+  // Admin/owner actions
+  const adminActions =
+    isOwner || isAdmin
+      ? ['Delete Group', 'Edit Group', 'View Members']
+      : [];
+  const options = [...base, ...adminActions, 'Cancel'];
+  const cancelIndex = options.length - 1;
+
+  const handle = (idx) => {
+    if (idx === cancelIndex) return;
+    const choice = options[idx];
+    switch (choice) {
+      case 'Leave Group':
+        return onLeave(group);
+      case 'Get Code':
+        return onGetCode(group);
+      case 'Delete Group':
+        return onDelete(group);
+      case 'Edit Group':
+        return onEdit(group);
+      case 'View Members':
+        return onViewMembers(group);
     }
-    // Finally add Cancel
-    options.push('Cancel');
-    const cancelIndex = options.length - 1;
+  };
 
-    const handle = idx => {
-      if (idx === cancelIndex) return;
-      const choice = options[idx];
-      switch (choice) {
-        case 'Leave Group':   return onLeave(group);
-        case 'Get Code':      return onGetCode(group);
-        case 'Delete Group':  return onDelete(group);
-        case 'Edit Group':    return onEdit(group);
-        case 'View Members':  return onViewMembers(group);
-      }
-    };
-
+  const showMenu = () => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
-        { options, cancelButtonIndex: cancelIndex, title: group.name },
+        {
+          options,
+          cancelButtonIndex: cancelIndex,
+          title: group.name,
+        },
         handle
       );
     } else {
@@ -68,9 +84,12 @@ export default function GroupCard({
           {group.subject} • {group.isPublic ? 'Public' : 'Private'}
         </Text>
       </View>
-
       <TouchableOpacity onPress={showMenu} style={styles.moreButton}>
-        <Ionicons name="ellipsis-vertical" size={24} color={colors.textSecondary} />
+        <Ionicons
+          name="ellipsis-vertical"
+          size={24}
+          color={colors.textSecondary}
+        />
       </TouchableOpacity>
     </View>
   );
