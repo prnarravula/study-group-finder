@@ -22,18 +22,23 @@ export default function GroupCard({
 }) {
   const { user } = useContext(AuthContext);
 
-  // Determine the highest role
+  // Determine user role
   const isOwner = user.uid === group.ownerId;
   const isAdmin =
     Array.isArray(group.adminIds) && group.adminIds.includes(user.uid);
+
   // Base actions
-  const base = ['Leave Group', 'Get Code'];
-  // Admin/owner actions
-  const adminActions =
-    isOwner || isAdmin
-      ? ['Delete Group', 'Edit Group', 'View Members']
-      : [];
-  const options = [...base, ...adminActions, 'Cancel'];
+  const baseActions = ['Leave Group', 'Get Code'];
+  // Owner-only actions
+  const ownerActions = isOwner ? ['Delete Group'] : [];
+  // Admin (and owner) actions
+  const adminActions = isOwner
+    ? ['Edit Group', 'View Members']
+    : isAdmin
+    ? ['Edit Group', 'View Members']
+    : [];
+
+  const options = [...baseActions, ...ownerActions, ...adminActions, 'Cancel'];
   const cancelIndex = options.length - 1;
 
   const handle = (idx) => {
@@ -50,6 +55,8 @@ export default function GroupCard({
         return onEdit(group);
       case 'View Members':
         return onViewMembers(group);
+      default:
+        return;
     }
   };
 

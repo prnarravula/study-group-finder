@@ -8,7 +8,7 @@ import { colors, typography, spacing } from '../constants';
 
 // backend
 import { signOut, deleteUser, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
-import { auth } from '../../backend/firebaseConfig';
+import { auth, db } from '../../backend/firebaseConfig';
 
 const ProfileScreen = () => {
   const navigation = useNavigation();
@@ -43,8 +43,9 @@ const ProfileScreen = () => {
   };
 
 const handleDeleteAccount = async () => {
-  if (!currentUser) {
-    alert("No user is currently signed in.");
+  const user = auth.currentUser;
+  if (!user) {
+    Alert.alert("No user is currently signed in.");
     return;
   }
 
@@ -58,13 +59,18 @@ const handleDeleteAccount = async () => {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteUser(currentUser);
-            alert("Your account has been deleted.");
+            // 1️⃣ Delete the Firestore student doc
+            await deleteDoc(doc(db, 'students', user.uid));
+
+            // 2️⃣ Delete the Firebase Auth user
+            await deleteUser(user);
+
+            Alert.alert("Your account and profile have been deleted.");
           } catch (error) {
             if (error.code === 'auth/requires-recent-login') {
-              alert("Please log in again to delete your account.");
+              Alert.alert("Please log in again to delete your account.");
             } else {
-              alert("Error deleting account: " + error.message);
+              Alert.alert("Error deleting account: " + error.message);
             }
           }
         },
