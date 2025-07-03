@@ -6,7 +6,6 @@ import YourGroupsScreen from '../screens/YourGroupsScreen';
 import ChatsScreen from '../screens/ChatsScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import ProfileScreen from '../screens/ProfileScreen';
-import ReportScreen from '../screens/ReportScreen';
 
 const Tab = createBottomTabNavigator();
 
@@ -22,7 +21,6 @@ const BottomNavBar = () => (
           case 'Chat':     iconName = 'chatbubble-outline';break;
           case 'Calendar': iconName = 'calendar-outline';  break;
           case 'Profile':  iconName = 'person-outline';    break;
-          case 'Report':   iconName = 'bar-chart-outline'; break;
           default:         iconName = 'ellipse';
         }
         return <Ionicons name={iconName} size={size} color={color} />;
@@ -47,7 +45,6 @@ const BottomNavBar = () => (
     <Tab.Screen name="Chat"     component={ChatsScreen} />
     <Tab.Screen name="Calendar" component={CalendarScreen} />
     <Tab.Screen name="Profile"  component={ProfileScreen} />
-    <Tab.Screen name="Report"   component={ReportScreen} />
   </Tab.Navigator>
 );
 

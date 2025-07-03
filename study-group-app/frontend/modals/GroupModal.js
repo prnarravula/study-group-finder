@@ -7,12 +7,13 @@ import {
   TouchableOpacity,
   StyleSheet,
   Switch,
-  ScrollView,
+  FlatList,
   TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AuthButton from '../components/AuthButton';
 import { colors, typography, spacing } from '../constants';
+import uvaCourses from '../../data/uvaCourses';
 
 export default function GroupModal({
   visible,
@@ -29,11 +30,15 @@ export default function GroupModal({
   const [countEnabled, setCountEnabled] = useState(initialValues.countEnabled ?? true);
   const [showSubjectDropdown, setShowSubjectDropdown] = useState(false);
 
-  // TODO: replace placeholder subject data
-  const subjectOptions = ['Math','Science','History','Art','Biology','Chemistry','English','Music'];
-  const filteredSubjects = subjectOptions.filter(opt =>
+  // case-sensitive filter-as-you-type
+  const filteredSubjects = uvaCourses.filter(opt =>
     opt.toLowerCase().includes(subject.toLowerCase())
   );
+
+  // validation flags
+  const nameIsValid = name.trim().length > 0;
+  const subjectIsValid = uvaCourses.includes(subject);
+  const formIsValid = nameIsValid && subjectIsValid;
 
   useEffect(() => {
     setName(initialValues.name || '');
@@ -48,11 +53,24 @@ export default function GroupModal({
   const titleText = mode === 'edit' ? 'Edit Group' : 'Create Group';
   const submitText = mode === 'edit' ? 'Save Changes' : 'Create';
 
+  const renderSubject = ({ item }) => (
+    <TouchableOpacity
+      style={styles.dropdownItem}
+      onPress={() => {
+        setSubject(item);
+        setShowSubjectDropdown(false);
+      }}
+    >
+      <Text style={styles.dropdownText}>{item}</Text>
+    </TouchableOpacity>
+  );
+
   return (
     <Modal visible={visible} transparent animationType="fade">
       <TouchableWithoutFeedback onPress={onClose}>
         <View style={styles.backdrop} />
       </TouchableWithoutFeedback>
+
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
           <View style={styles.headerRow}>
@@ -62,24 +80,28 @@ export default function GroupModal({
             </TouchableOpacity>
           </View>
 
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            nestedScrollEnabled
-            keyboardShouldPersistTaps="handled"
-          >
+          <View style={styles.formContainer}>
+            {/* Group Name */}
             <Text style={styles.label}>Group Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, !nameIsValid && styles.inputError]}
               value={name}
               onChangeText={setName}
               placeholder="Enter group name"
               placeholderTextColor={colors.text}
             />
+            {!nameIsValid && (
+              <Text style={styles.errorText}>Group name is required.</Text>
+            )}
 
+            {/* Subject */}
             <Text style={styles.label}>Subject</Text>
             <View style={styles.selectContainer}>
               <TextInput
-                style={styles.subjectInput}
+                style={[
+                  styles.subjectInput,
+                  (!subjectIsValid || subject.trim() === '') && styles.inputError
+                ]}
                 value={subject}
                 onChangeText={text => {
                   setSubject(text);
@@ -91,7 +113,7 @@ export default function GroupModal({
               />
               <TouchableOpacity
                 style={styles.chevron}
-                onPress={() => setShowSubjectDropdown(prev => !prev)}
+                onPress={() => setShowSubjectDropdown(v => !v)}
               >
                 <Ionicons
                   name="chevron-down-outline"
@@ -100,29 +122,26 @@ export default function GroupModal({
                 />
               </TouchableOpacity>
             </View>
+            {subject.trim() === '' ? (
+              <Text style={styles.errorText}>Subject is required.</Text>
+            ) : !subjectIsValid ? (
+              <Text style={styles.errorText}>Please select a valid subject.</Text>
+            ) : null}
 
-            {showSubjectDropdown && filteredSubjects.length > 0 && (
-              <ScrollView
+            {showSubjectDropdown && (
+              <FlatList
                 style={styles.dropdown}
-                nestedScrollEnabled
+                data={filteredSubjects}
+                keyExtractor={item => item}
+                renderItem={renderSubject}
                 keyboardShouldPersistTaps="handled"
-                scrollEnabled
-              >
-                {filteredSubjects.map(opt => (
-                  <TouchableOpacity
-                    key={opt}
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSubject(opt);
-                      setShowSubjectDropdown(false);
-                    }}
-                  >
-                    <Text style={styles.dropdownText}>{opt}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                nestedScrollEnabled
+                initialNumToRender={20}
+                maxToRenderPerBatch={20}
+              />
             )}
 
+            {/* Description */}
             <Text style={styles.label}>Description</Text>
             <TextInput
               style={[styles.input, styles.multiline]}
@@ -130,9 +149,9 @@ export default function GroupModal({
               onChangeText={setDescription}
               placeholder="Enter description"
               placeholderTextColor={colors.text}
-              multiline
             />
 
+            {/* Count */}
             <View style={styles.row}>
               <Text style={styles.label}>Max Student Count</Text>
               <View style={styles.enableContainer}>
@@ -140,7 +159,6 @@ export default function GroupModal({
                 <Switch value={countEnabled} onValueChange={setCountEnabled} />
               </View>
             </View>
-
             <View style={[styles.counterRow, !countEnabled && styles.disabled]}>
               <TouchableOpacity
                 style={styles.countBtn}
@@ -165,17 +183,18 @@ export default function GroupModal({
               </TouchableOpacity>
             </View>
 
+            {/* Public */}
             <View style={styles.row}>
               <Text style={styles.label}>Public</Text>
               <Switch value={isPublic} onValueChange={setIsPublic} />
             </View>
-          </ScrollView>
+          </View>
 
+          {/* Submit */}
           <AuthButton
             label={submitText}
-            onPress={() =>
-              onSubmit({ name, subject, description, count, isPublic, countEnabled })
-            }
+            onPress={() => formIsValid && onSubmit({ name, subject, description, count, isPublic, countEnabled })}
+            disabled={!formIsValid}
             style={styles.submitBtn}
           />
         </View>
@@ -216,7 +235,7 @@ const styles = StyleSheet.create({
     fontSize: typography.fontMd,
     color: colors.primary,
   },
-  scrollContent: {
+  formContainer: {
     paddingBottom: spacing.vs2,
   },
   label: {
@@ -230,13 +249,22 @@ const styles = StyleSheet.create({
     borderRadius: spacing.s2,
     paddingHorizontal: spacing.s2,
     paddingVertical: spacing.vs2,
-    marginBottom: spacing.vs3,
+    marginBottom: spacing.vs1,
     backgroundColor: colors.surface ?? colors.background,
     color: colors.text,
+  },
+  inputError: {
+    borderColor: 'red',
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: spacing.vs2,
+    fontSize: typography.fontSm,
   },
   multiline: {
     height: spacing.vs10,
     textAlignVertical: 'top',
+    marginBottom: spacing.vs3,
   },
   selectContainer: {
     flexDirection: 'row',
@@ -244,7 +272,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: spacing.s2,
-    marginBottom: spacing.vs2,
+    marginBottom: spacing.vs1,
   },
   subjectInput: {
     flex: 1,

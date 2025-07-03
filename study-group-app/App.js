@@ -14,7 +14,6 @@ import HomeScreen from './frontend/screens/HomeScreen';
 import IndChatScreen from './frontend/screens/IndChatScreen';
 import LogInScreen from './frontend/screens/LogInScreen';
 import ProfileScreen from './frontend/screens/ProfileScreen';
-import ReportScreen from './frontend/screens/ReportScreen';
 import SignUpScreen from './frontend/screens/SignUpScreen';
 import VerifyEmailScreen from './frontend/screens/VerifyEmailScreen';
 import YourGroupsScreen from './frontend/screens/YourGroupsScreen';
