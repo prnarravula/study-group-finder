@@ -20,7 +20,6 @@ import {
   where,
   onSnapshot,
   updateDoc,
-  arrayUnion,
   arrayRemove,
   doc,
   deleteDoc,
@@ -137,9 +136,24 @@ export default function YourGroupsScreen({ navigation }) {
       ]
     );
   };
+
   const handleLeave = group => {
     const members = group.memberIds || [];
-    if (members.length <= 1) return handleDelete(group);
+
+    // If you're the owner...
+    if (group.ownerId === user.uid) {
+      // ...and the only member, treat as delete:
+      if (members.length <= 1) {
+        return handleDelete(group);
+      }
+      // ...and there are others, block:
+      return Alert.alert(
+        'Transfer Ownership First',
+        `You’re the owner of "${group.name}". Please transfer ownership before leaving.`
+      );
+    }
+
+    // Otherwise, allow a normal leave:
     Alert.alert(
       'Leave Group',
       `Leave "${group.name}"?`,
@@ -162,6 +176,7 @@ export default function YourGroupsScreen({ navigation }) {
       ]
     );
   };
+
   const handleGetCode = group => {
     Alert.alert('Group code', group.joinCode || 'No code set');
   };
@@ -189,7 +204,7 @@ export default function YourGroupsScreen({ navigation }) {
             onLeave={handleLeave}
             onGetCode={handleGetCode}
             onDelete={handleDelete}
-            onEdit={handleEdit}             // <-- use handleEdit here
+            onEdit={handleEdit}
             onViewMembers={g =>
               navigation.navigate('GroupMembers', { groupId: g.id })
             }
