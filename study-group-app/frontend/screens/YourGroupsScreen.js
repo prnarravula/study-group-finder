@@ -21,6 +21,7 @@ import {
   onSnapshot,
   updateDoc,
   arrayRemove,
+  arrayUnion,
   doc,
   deleteDoc,
 } from 'firebase/firestore';
@@ -31,12 +32,13 @@ import { generateUniqueJoinCode } from '../components/GenerateUniqueJoinCode';
 export default function YourGroupsScreen({ navigation }) {
   const { user, checking } = useContext(AuthContext);
 
-  // Modal state
+  /* ───────── modal state ───────── */
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' or 'edit'
+  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
   const [modalInitial, setModalInitial] = useState({});
   const [editingGroup, setEditingGroup] = useState(null);
 
+  /* ───────── group list ───────── */
   const [groups, setGroups] = useState([]);
 
   useEffect(() => {
@@ -47,12 +49,12 @@ export default function YourGroupsScreen({ navigation }) {
     );
     return onSnapshot(
       q,
-      snap => setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      err => console.error('Error fetching groups:', err)
+      (snap) => setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => console.error('Error fetching groups:', err)
     );
   }, [checking, user]);
 
-  // Create flow
+  /* ───────── create ───────── */
   const handleCreate = () => {
     setModalMode('create');
     setModalInitial({
@@ -65,7 +67,8 @@ export default function YourGroupsScreen({ navigation }) {
     });
     setModalVisible(true);
   };
-  const handleCreateSubmit = async data => {
+
+  const handleCreateSubmit = async (data) => {
     try {
       const joinCode = await generateUniqueJoinCode();
       await addDoc(collection(db, 'groups'), {
@@ -83,8 +86,8 @@ export default function YourGroupsScreen({ navigation }) {
     }
   };
 
-  // Edit flow
-  const handleEdit = group => {
+  /* ───────── edit ───────── */
+  const handleEdit = (group) => {
     setModalMode('edit');
     setEditingGroup(group);
     setModalInitial({
@@ -97,7 +100,8 @@ export default function YourGroupsScreen({ navigation }) {
     });
     setModalVisible(true);
   };
-  const handleEditSubmit = async data => {
+
+  const handleEditSubmit = async (data) => {
     try {
       await updateDoc(doc(db, 'groups', editingGroup.id), {
         name: data.name,
@@ -114,8 +118,8 @@ export default function YourGroupsScreen({ navigation }) {
     }
   };
 
-  // Delete, Leave, GetCode
-  const handleDelete = group => {
+  /* ───────── delete / leave ───────── */
+  const handleDelete = (group) => {
     Alert.alert(
       'Delete Group',
       `Delete "${group.name}"? This cannot be undone.`,
@@ -137,23 +141,18 @@ export default function YourGroupsScreen({ navigation }) {
     );
   };
 
-  const handleLeave = group => {
+  const handleLeave = (group) => {
     const members = group.memberIds || [];
 
-    // If you're the owner...
+    // owner cannot leave unless alone
     if (group.ownerId === user.uid) {
-      // ...and the only member, treat as delete:
-      if (members.length <= 1) {
-        return handleDelete(group);
-      }
-      // ...and there are others, block:
+      if (members.length <= 1) return handleDelete(group);
       return Alert.alert(
         'Transfer Ownership First',
         `You’re the owner of "${group.name}". Please transfer ownership before leaving.`
       );
     }
 
-    // Otherwise, allow a normal leave:
     Alert.alert(
       'Leave Group',
       `Leave "${group.name}"?`,
@@ -166,6 +165,7 @@ export default function YourGroupsScreen({ navigation }) {
             try {
               await updateDoc(doc(db, 'groups', group.id), {
                 memberIds: arrayRemove(user.uid),
+                adminIds: arrayRemove(user.uid),
               });
             } catch (e) {
               console.error('Leave failed:', e);
@@ -177,9 +177,49 @@ export default function YourGroupsScreen({ navigation }) {
     );
   };
 
-  const handleGetCode = group => {
-    Alert.alert('Group code', group.joinCode || 'No code set');
+  /* ───────── member removal ───────── */
+  const handleRemoveMember = async (group, member) => {
+    try {
+      await updateDoc(doc(db, 'groups', group.id), {
+        memberIds: arrayRemove(member.uid),
+        adminIds: arrayRemove(member.uid),
+      });
+    } catch (e) {
+      console.error('Remove member failed:', e);
+      Alert.alert('Error', 'Could not remove member.');
+    }
   };
+
+  /* ───────── role changes ───────── */
+  const handleChangeRole = async (group, member, action) => {
+    if (action === 'toggleAdmin') {
+      const isAdminNow = (group.adminIds || []).includes(member.uid);
+      try {
+        await updateDoc(doc(db, 'groups', group.id), {
+          adminIds: isAdminNow
+            ? arrayRemove(member.uid)   // demote
+            : arrayUnion(member.uid),   // promote
+        });
+      } catch (e) {
+        console.error('Toggle admin failed:', e);
+        Alert.alert('Error', 'Could not change role.');
+      }
+    } else if (action === 'makeOwner') {
+      try {
+        await updateDoc(doc(db, 'groups', group.id), {
+          ownerId: member.uid,
+          adminIds: arrayUnion(user.uid),   // previous owner stays as admin
+        });
+      } catch (e) {
+        console.error('Transfer owner failed:', e);
+        Alert.alert('Error', 'Could not transfer ownership.');
+      }
+    }
+  };
+
+  /* ───────── misc ───────── */
+  const handleGetCode = (group) =>
+    Alert.alert('Group code', group.joinCode || 'No code set');
 
   if (checking) {
     return (
@@ -191,13 +231,16 @@ export default function YourGroupsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* header */}
       <View style={styles.headerPane}>
         <Text style={styles.header}>Your Groups</Text>
       </View>
 
+      {/* list */}
       <FlatList
         data={groups}
-        keyExtractor={g => g.id}
+        keyExtractor={(g) => g.id}
+        contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
           <GroupCard
             group={item}
@@ -205,12 +248,10 @@ export default function YourGroupsScreen({ navigation }) {
             onGetCode={handleGetCode}
             onDelete={handleDelete}
             onEdit={handleEdit}
-            onViewMembers={g =>
-              navigation.navigate('GroupMembers', { groupId: g.id })
-            }
+            onRemoveMember={handleRemoveMember}
+            onChangeRole={handleChangeRole}   // passes (group, member, action)
           />
         )}
-        contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>
@@ -220,6 +261,7 @@ export default function YourGroupsScreen({ navigation }) {
         }
       />
 
+      {/* bottom buttons */}
       <View style={styles.buttonRow}>
         <AuthButton
           label="Create Group"
@@ -234,6 +276,7 @@ export default function YourGroupsScreen({ navigation }) {
         />
       </View>
 
+      {/* create / edit modal */}
       <GroupModal
         visible={modalVisible}
         mode={modalMode}
@@ -247,6 +290,7 @@ export default function YourGroupsScreen({ navigation }) {
   );
 }
 
+/* ───────── styles ───────── */
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
