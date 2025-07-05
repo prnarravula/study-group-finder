@@ -42,6 +42,7 @@ const AppNavigator = () => {
         <>
           <Stack.Screen name="BottomNavBar" component={BottomNavBar} />
           <Stack.Screen name="FindGroupScreen" component={FindGroupScreen} />
+          <Stack.Screen name="IndChat" component={IndChatScreen} options={{ title: 'Chat' }} />
         </>
       ) : user ? (
         <>

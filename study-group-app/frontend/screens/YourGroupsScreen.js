@@ -8,12 +8,9 @@ import {
   ActivityIndicator,
   FlatList,
 } from 'react-native';
-import AuthButton from '../components/AuthButton';
-import GroupModal from '../modals/GroupModal';
-import GroupCard from '../components/GroupCard';
-import { colors, typography, spacing } from '../constants';
 import {
   addDoc,
+  setDoc,
   collection,
   serverTimestamp,
   query,
@@ -27,18 +24,22 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../backend/firebaseConfig';
 import { AuthContext } from '../../backend/AuthContext';
+import { colors, typography, spacing } from '../constants';
 import { generateUniqueJoinCode } from '../components/GenerateUniqueJoinCode';
+import AuthButton from '../components/AuthButton';
+import GroupModal from '../modals/GroupModal';
+import GroupCard from '../components/GroupCard';
 
 export default function YourGroupsScreen({ navigation }) {
   const { user, checking } = useContext(AuthContext);
 
-  /* ───────── modal state ───────── */
+  /* modal */
   const [modalVisible, setModalVisible] = useState(false);
-  const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
+  const [modalMode, setModalMode] = useState('create');
   const [modalInitial, setModalInitial] = useState({});
   const [editingGroup, setEditingGroup] = useState(null);
 
-  /* ───────── group list ───────── */
+  /* list */
   const [groups, setGroups] = useState([]);
 
   useEffect(() => {
@@ -47,14 +48,12 @@ export default function YourGroupsScreen({ navigation }) {
       collection(db, 'groups'),
       where('memberIds', 'array-contains', user.uid)
     );
-    return onSnapshot(
-      q,
-      (snap) => setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => console.error('Error fetching groups:', err)
+    return onSnapshot(q, (snap) =>
+      setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
     );
   }, [checking, user]);
 
-  /* ───────── create ───────── */
+  /* ───────── create group & chat ───────── */
   const handleCreate = () => {
     setModalMode('create');
     setModalInitial({
@@ -71,7 +70,9 @@ export default function YourGroupsScreen({ navigation }) {
   const handleCreateSubmit = async (data) => {
     try {
       const joinCode = await generateUniqueJoinCode();
-      await addDoc(collection(db, 'groups'), {
+
+      /* group */
+      const groupRef = await addDoc(collection(db, 'groups'), {
         ...data,
         ownerId: user.uid,
         adminIds: [user.uid],
@@ -79,6 +80,17 @@ export default function YourGroupsScreen({ navigation }) {
         joinCode,
         createdAt: serverTimestamp(),
       });
+
+      /* chat (same id) */
+      await setDoc(doc(db, 'chats', groupRef.id), {
+        groupId: groupRef.id,
+        groupName: data.name,
+        memberIds: [user.uid],
+        lastMsg: '',
+        lastSender: '',
+        updatedAt: serverTimestamp(),
+      });
+
       setModalVisible(false);
     } catch (e) {
       console.error('Create failed:', e);
@@ -86,17 +98,17 @@ export default function YourGroupsScreen({ navigation }) {
     }
   };
 
-  /* ───────── edit ───────── */
-  const handleEdit = (group) => {
+  /* ───────── edit group ───────── */
+  const handleEdit = (g) => {
     setModalMode('edit');
-    setEditingGroup(group);
+    setEditingGroup(g);
     setModalInitial({
-      name: group.name,
-      subject: group.subject,
-      description: group.description || '',
-      count: group.maxStudentCount,
-      countEnabled: group.maxCountEnabled,
-      isPublic: group.isPublic,
+      name: g.name,
+      subject: g.subject,
+      description: g.description || '',
+      count: g.maxStudentCount,
+      countEnabled: g.maxCountEnabled,
+      isPublic: g.isPublic,
     });
     setModalVisible(true);
   };
@@ -111,6 +123,10 @@ export default function YourGroupsScreen({ navigation }) {
         maxCountEnabled: data.countEnabled,
         isPublic: data.isPublic,
       });
+      /* keep chat preview name synced */
+      await updateDoc(doc(db, 'chats', editingGroup.id), {
+        groupName: data.name,
+      });
       setModalVisible(false);
     } catch (e) {
       console.error('Edit failed:', e);
@@ -118,223 +134,171 @@ export default function YourGroupsScreen({ navigation }) {
     }
   };
 
-  /* ───────── delete / leave ───────── */
-  const handleDelete = (group) => {
-    Alert.alert(
-      'Delete Group',
-      `Delete "${group.name}"? This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, 'groups', group.id));
-            } catch (e) {
-              console.error('Delete failed:', e);
-              Alert.alert('Error', 'Could not delete group.');
-            }
-          },
+  /* ───────── delete group & chat ───────── */
+  const handleDelete = (g) => {
+    Alert.alert('Delete Group', `Delete "${g.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteDoc(doc(db, 'groups', g.id));
+            await deleteDoc(doc(db, 'chats', g.id)); // small, text-only
+          } catch (e) {
+            console.error('Delete failed:', e);
+            Alert.alert('Error', 'Could not delete.');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const handleLeave = (group) => {
-    const members = group.memberIds || [];
-
-    // owner cannot leave unless alone
-    if (group.ownerId === user.uid) {
-      if (members.length <= 1) return handleDelete(group);
+  /* ───────── leave group ───────── */
+  const handleLeave = (g) => {
+    if (g.ownerId === user.uid && g.memberIds.length > 1) {
       return Alert.alert(
         'Transfer Ownership First',
-        `You’re the owner of "${group.name}". Please transfer ownership before leaving.`
+        'You are the owner; transfer ownership before leaving.'
       );
     }
 
-    Alert.alert(
-      'Leave Group',
-      `Leave "${group.name}"?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Leave',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await updateDoc(doc(db, 'groups', group.id), {
-                memberIds: arrayRemove(user.uid),
-                adminIds: arrayRemove(user.uid),
-              });
-            } catch (e) {
-              console.error('Leave failed:', e);
-              Alert.alert('Error', 'Could not leave group.');
-            }
-          },
+    Alert.alert('Leave Group', `Leave "${g.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await updateDoc(doc(db, 'groups', g.id), {
+              memberIds: arrayRemove(user.uid),
+              adminIds: arrayRemove(user.uid),
+            });
+            await updateDoc(doc(db, 'chats', g.id), {
+              memberIds: arrayRemove(user.uid),
+            });
+          } catch (e) {
+            console.error('Leave failed:', e);
+            Alert.alert('Error', 'Could not leave.');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  /* ───────── member removal ───────── */
-  const handleRemoveMember = async (group, member) => {
+  /* ───────── member remove / role change (short-form) ───────── */
+  const handleRemoveMember = async (g, m) => {
     try {
-      await updateDoc(doc(db, 'groups', group.id), {
-        memberIds: arrayRemove(member.uid),
-        adminIds: arrayRemove(member.uid),
+      await updateDoc(doc(db, 'groups', g.id), {
+        memberIds: arrayRemove(m.uid),
+        adminIds: arrayRemove(m.uid),
+      });
+      await updateDoc(doc(db, 'chats', g.id), {
+        memberIds: arrayRemove(m.uid),
       });
     } catch (e) {
-      console.error('Remove member failed:', e);
-      Alert.alert('Error', 'Could not remove member.');
+      Alert.alert('Error', 'Could not remove.');
     }
   };
 
-  /* ───────── role changes ───────── */
-  const handleChangeRole = async (group, member, action) => {
+  const handleChangeRole = async (g, m, action) => {
     if (action === 'toggleAdmin') {
-      const isAdminNow = (group.adminIds || []).includes(member.uid);
-      try {
-        await updateDoc(doc(db, 'groups', group.id), {
-          adminIds: isAdminNow
-            ? arrayRemove(member.uid)   // demote
-            : arrayUnion(member.uid),   // promote
-        });
-      } catch (e) {
-        console.error('Toggle admin failed:', e);
-        Alert.alert('Error', 'Could not change role.');
-      }
+      const isAd = g.adminIds?.includes(m.uid);
+      await updateDoc(doc(db, 'groups', g.id), {
+        adminIds: isAd ? arrayRemove(m.uid) : arrayUnion(m.uid),
+      });
     } else if (action === 'makeOwner') {
-      try {
-        await updateDoc(doc(db, 'groups', group.id), {
-          ownerId: member.uid,
-          adminIds: arrayUnion(user.uid),   // previous owner stays as admin
-        });
-      } catch (e) {
-        console.error('Transfer owner failed:', e);
-        Alert.alert('Error', 'Could not transfer ownership.');
-      }
+      await updateDoc(doc(db, 'groups', g.id), {
+        ownerId: m.uid,
+        adminIds: arrayUnion(user.uid),
+      });
     }
   };
 
-  /* ───────── misc ───────── */
-  const handleGetCode = (group) =>
-    Alert.alert('Group code', group.joinCode || 'No code set');
-
-  if (checking) {
+  /* UI */
+  if (checking)
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
-  }
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* header */}
-      <View style={styles.headerPane}>
-        <Text style={styles.header}>Your Groups</Text>
+      <View style={styles.head}>
+        <Text style={styles.headTxt}>Your Groups</Text>
       </View>
 
-      {/* list */}
       <FlatList
         data={groups}
         keyExtractor={(g) => g.id}
-        contentContainerStyle={styles.listContent}
         renderItem={({ item }) => (
           <GroupCard
             group={item}
             onLeave={handleLeave}
-            onGetCode={handleGetCode}
+            onGetCode={(g) => Alert.alert('Code', g.joinCode || '–')}
             onDelete={handleDelete}
             onEdit={handleEdit}
             onRemoveMember={handleRemoveMember}
-            onChangeRole={handleChangeRole}   // passes (group, member, action)
+            onChangeRole={handleChangeRole}
           />
         )}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
-              You haven’t created any groups yet.
-            </Text>
+        contentContainerStyle={styles.listC}
+        ListEmptyComponent={() => (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTxt}>No groups yet.</Text>
           </View>
-        }
+        )}
       />
 
-      {/* bottom buttons */}
-      <View style={styles.buttonRow}>
-        <AuthButton
-          label="Create Group"
-          onPress={handleCreate}
-          style={styles.createBtn}
-        />
+      <View style={styles.btnRow}>
+        <AuthButton label="Create Group" style={styles.btn} onPress={handleCreate} />
         <AuthButton
           label="Join Group"
-          onPress={() => navigation.navigate('FindGroupScreen')}
-          style={styles.joinBtn}
+          style={[styles.btn, styles.joinBtn]}
           textStyle={{ color: colors.primary }}
+          onPress={() => navigation.navigate('FindGroupScreen')}
         />
       </View>
 
-      {/* create / edit modal */}
       <GroupModal
         visible={modalVisible}
         mode={modalMode}
         initialValues={modalInitial}
-        onSubmit={
-          modalMode === 'create' ? handleCreateSubmit : handleEditSubmit
-        }
+        onSubmit={modalMode === 'create' ? handleCreateSubmit : handleEditSubmit}
         onClose={() => setModalVisible(false)}
       />
     </SafeAreaView>
   );
 }
 
-/* ───────── styles ───────── */
+/* styles */
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  headerPane: {
+  head: {
     backgroundColor: 'white',
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
     paddingHorizontal: spacing.s4,
     paddingVertical: spacing.vs4,
   },
-  header: {
-    fontSize: typography.font4Xl,
-    fontWeight: 'bold',
-    color: colors.text,
-  },
-  listContent: {
-    paddingHorizontal: spacing.s4,
-    paddingBottom: spacing.vs4,
-  },
-  emptyContainer: {
-    marginTop: spacing.vs6,
-    alignItems: 'center',
-    paddingHorizontal: spacing.s4,
-  },
-  emptyText: {
-    fontSize: typography.fontMd,
-    color: colors.textSecondary,
-  },
-  buttonRow: {
+  headTxt: { fontSize: typography.font4Xl, fontWeight: 'bold', color: colors.text },
+  listC: { paddingHorizontal: spacing.s4, paddingBottom: spacing.vs4 },
+  empty: { marginTop: spacing.vs6, alignItems: 'center' },
+  emptyTxt: { fontSize: typography.fontMd, color: colors.textSecondary },
+  btnRow: {
     flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: colors.border,
     backgroundColor: 'white',
     paddingTop: spacing.vs3,
     paddingHorizontal: spacing.s4,
-    marginBottom: spacing.vs4,
   },
-  createBtn: { flex: 1, marginRight: spacing.s2, paddingHorizontal: spacing.s6 },
+  btn: { flex: 1, marginHorizontal: spacing.s2, paddingHorizontal: spacing.s6 },
   joinBtn: {
-    flex: 1,
-    marginLeft: spacing.s2,
     backgroundColor: 'transparent',
     borderWidth: 1,
     borderColor: colors.primary,
-    paddingHorizontal: spacing.s6,
   },
 });
