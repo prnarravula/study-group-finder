@@ -19,10 +19,20 @@ import {
 import { db } from '../../backend/firebaseConfig';
 import { AuthContext } from '../../backend/AuthContext';
 
+/**
+ * ChatsScreen
+ * -------------
+ * Matches the light header used across the app:
+ * - Transparent-looking bar that sits on the background
+ * - Subtle bottom divider
+ * - Card-style rows with elevation + soft shadow
+ * - Pill-style unread badge
+ */
 export default function ChatsScreen({ navigation }) {
   const { user } = useContext(AuthContext);
   const [chats, setChats] = useState([]);
 
+  /* -------- Firestore listener -------- */
   useEffect(() => {
     if (!user) return;
     const q = query(
@@ -30,18 +40,29 @@ export default function ChatsScreen({ navigation }) {
       where('memberIds', 'array-contains', user.uid),
       orderBy('updatedAt', 'desc')
     );
-    return onSnapshot(q, (snap) =>
-      setChats(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    return onSnapshot(q, snap =>
+      setChats(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
   }, [user]);
 
+  /* -------- Render a single chat row -------- */
   const renderItem = ({ item }) => (
     <TouchableOpacity
-      style={styles.row}
-      onPress={() => navigation.navigate('IndChat', { chatId: item.id })}
+      style={styles.card}
+      activeOpacity={0.8}
+      onPress={() =>
+        navigation.navigate('IndChat', {
+          chatId: item.id,
+          title: item.groupName,
+        })
+      }
     >
-      <View style={styles.icon}>
-        <Ionicons name={item.groupIcon || 'chatbubbles'} size={26} color="white" />
+      <View style={styles.iconCircle}>
+        <Ionicons
+          name={item.groupIcon || 'chatbubbles'}
+          size={24}
+          color="white"
+        />
       </View>
 
       <View style={styles.textBlock}>
@@ -50,13 +71,15 @@ export default function ChatsScreen({ navigation }) {
         </Text>
         <Text style={styles.subtitle} numberOfLines={1}>
           {item.lastSender ? `${item.lastSender}: ` : ''}
-          {item.lastMsg || ''}
+          {item.lastMsg || 'No messages yet'}
         </Text>
       </View>
 
       {item.unreadCounts?.[user.uid] > 0 && (
         <View style={styles.badge}>
-          <Text style={styles.badgeTxt}>{item.unreadCounts[user.uid]}</Text>
+          <Text style={styles.badgeText}>
+            {item.unreadCounts[user.uid]}
+          </Text>
         </View>
       )}
     </TouchableOpacity>
@@ -64,58 +87,102 @@ export default function ChatsScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.headerTxt}>Chat</Text>
+      {/* Header bar */}
+      <View style={styles.headerBar}>
+        <Text style={styles.headerText}>Chats</Text>
       </View>
 
+      {/* Chat list */}
       <FlatList
         data={chats}
-        keyExtractor={(c) => c.id}
+        keyExtractor={c => c.id}
         renderItem={renderItem}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
-        contentContainerStyle={{ paddingBottom: spacing.vs6 }}
+        contentContainerStyle={styles.listContent}
+        ListEmptyComponent={
+          <View style={{ marginTop: spacing.vs6, alignItems: 'center' }}>
+            <Text style={styles.emptyText}>No conversations yet</Text>
+          </View>
+        }
       />
     </SafeAreaView>
   );
 }
 
-/* styles */
+/* ---------- Styles ---------- */
+const CARD_RADIUS = spacing.s3;
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  header: {
-    backgroundColor: '#002D62',
+
+  /* Header */
+  headerBar: {
+    backgroundColor: colors.background,
     paddingHorizontal: spacing.s4,
     paddingVertical: spacing.vs4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.gray200,
   },
-  headerTxt: { color: 'white', fontSize: typography.font4Xl, fontWeight: 'bold' },
+  headerText: {
+    color: colors.text,
+    fontSize: typography.font4Xl,
+    fontWeight: 'bold',
+  },
 
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  /* List */
+  listContent: {
     paddingHorizontal: spacing.s4,
     paddingVertical: spacing.vs3,
-    backgroundColor: 'white',
   },
-  icon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#4D8EFF',
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surface ?? 'white',
+    borderRadius: CARD_RADIUS,
+    padding: spacing.s3,
+    marginBottom: spacing.vs3,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  iconCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: spacing.s4,
+    marginRight: spacing.s3,
   },
   textBlock: { flex: 1 },
-  title: { fontSize: typography.fontLg, fontWeight: '600', color: colors.text },
-  subtitle: { fontSize: typography.fontMd, color: colors.textSecondary, marginTop: 2 },
+  title: {
+    fontSize: typography.fontLg,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  subtitle: {
+    fontSize: typography.fontMd,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   badge: {
     minWidth: 20,
     paddingHorizontal: 6,
+    height: 20,
     borderRadius: 10,
-    backgroundColor: '#E30425',
+    backgroundColor: colors.accent ?? '#E30425',
     justifyContent: 'center',
     alignItems: 'center',
+    marginLeft: spacing.s2,
   },
-  badgeTxt: { color: 'white', fontSize: typography.fontSm, fontWeight: '500' },
-  sep: { height: 1, backgroundColor: colors.border },
+  badgeText: {
+    color: 'white',
+    fontSize: typography.fontSm,
+    fontWeight: '500',
+  },
+  emptyText: {
+    color: colors.textSecondary,
+    fontSize: typography.fontMd,
+  },
 });
