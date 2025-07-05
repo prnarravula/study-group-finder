@@ -1,74 +1,146 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useContext, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+} from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+} from 'firebase/firestore';
+import { db } from '../../backend/firebaseConfig';
+import { AuthContext } from '../../backend/AuthContext';
 import { colors, typography, spacing } from '../constants';
 
-// configure locale
-LocaleConfig.locales['en'] = LocaleConfig.locales[''];
+/* ----- locale ----- */
+LocaleConfig.locales.en = LocaleConfig.locales[''];
 LocaleConfig.defaultLocale = 'en';
 
-const upcomingSessions = [
-  { id: '1', title: 'Art History', date: new Date().toISOString().slice(0,10), time: '2:00 PM' },
-  { id: '2', title: 'Biology',    date: '2025-06-16',                                   time: '11:00 AM' },
-  { id: '3', title: 'Chemistry',  date: '2025-06-25',                                   time: '3:00 PM' },
-];
-
 export default function CalendarScreen() {
+  const { user } = useContext(AuthContext);
   const [currentDate, setCurrentDate] = useState(
     new Date().toISOString().slice(0, 10)
   );
+  const [sessions, setSessions] = useState([]); // { id, title, date, start, end }
+  const [loading, setLoading] = useState(true);
 
-  // build markedDates for dots
-  const markedDates = upcomingSessions.reduce((acc, session) => {
-    acc[session.date] = { marked: true };
+  /* ---- listen to all groups → sessions ---- */
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. find every group the user is a member of
+    const groupsQ = query(
+      collection(db, 'groups'),
+      where('memberIds', 'array-contains', user.uid)
+    );
+
+    const unsubGroups = onSnapshot(groupsQ, async (groupSnap) => {
+      const newSessions = [];
+
+      // detach previous listeners
+      const unsubFns = [];
+
+      // 2. for each group, listen to its /sessions
+      await Promise.all(
+        groupSnap.docs.map(async (gDoc) => {
+          const gId = gDoc.id;
+          const sessCol = collection(db, 'groups', gId, 'sessions');
+
+          const unsubSess = onSnapshot(sessCol, (sessSnap) => {
+            sessSnap.forEach((s) => {
+              const d = s.data();
+              newSessions.push({
+                id: `${gId}-${s.id}`,
+                title: gDoc.data().name ?? gDoc.data().groupName ?? 'Session',
+                date: d.startTime.toDate().toISOString().slice(0, 10),
+                start: d.startTime.toDate(),
+                end: d.endTime.toDate(),
+              });
+              // sort later
+              setSessions(
+                newSessions.sort(
+                  (a, b) => a.start.getTime() - b.start.getTime()
+                )
+              );
+            });
+          });
+
+          unsubFns.push(unsubSess);
+        })
+      );
+
+      setLoading(false);
+
+      // cleanup when component unmounts
+      return () => unsubFns.forEach((fn) => fn && fn());
+    });
+
+    return () => unsubGroups();
+  }, [user]);
+
+  /* ---- marked dates ---- */
+  const markedDates = sessions.reduce((acc, s) => {
+    acc[s.date] = { marked: true };
     return acc;
   }, {});
-  markedDates[currentDate] = { ...(markedDates[currentDate] || {}), selected: true };
+  markedDates[currentDate] = {
+    ...(markedDates[currentDate] || {}),
+    selected: true,
+  };
 
+  /* ---- render ---- */
   return (
     <SafeAreaView style={styles.safe}>
       <Text style={styles.header}>Calendar</Text>
 
       <Calendar
         current={currentDate}
-        onDayPress={day => setCurrentDate(day.dateString)}
-        monthFormat={'MMMM yyyy'}
+        onDayPress={(day) => setCurrentDate(day.dateString)}
+        monthFormat="MMMM yyyy"
         hideExtraDays
         firstDay={0}
-        markingType={'simple'}
+        markingType="simple"
         markedDates={markedDates}
         theme={{
-          backgroundColor: colors.white,
           calendarBackground: colors.white,
           dayTextColor: colors.text,
-          textSectionTitleColor: colors.text,
           monthTextColor: colors.text,
           arrowColor: colors.text,
           todayTextColor: colors.primary,
-          // these are fallback; actual circle is drawn in dayComponent
           selectedDayBackgroundColor: colors.primary,
           selectedDayTextColor: colors.white,
         }}
-        // custom dayComponent to enlarge the selected-day circle
         dayComponent={({ date, state, marking }) => {
           const isSelected = marking?.selected;
-          const isMarked   = marking?.marked;
+          const isMarked = marking?.marked;
           return (
             <TouchableOpacity onPress={() => setCurrentDate(date.dateString)}>
-              <View style={[
-                styles.dayContainer,
-                isSelected && styles.selectedDayContainer
-              ]}>
-                <Text style={[
-                  styles.dayText,
-                  isSelected ? styles.selectedDayText : (state === 'disabled' ? styles.disabledDayText : null)
-                ]}>
+              <View
+                style={[
+                  styles.dayContainer,
+                  isSelected && styles.selectedDayContainer,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dayText,
+                    isSelected
+                      ? styles.selectedDayText
+                      : state === 'disabled'
+                      ? styles.disabledDayText
+                      : null,
+                  ]}
+                >
                   {date.day}
                 </Text>
-                {isMarked && !isSelected && (
-                  <View style={styles.dot} />
-                )}
+                {isMarked && !isSelected && <View style={styles.dot} />}
               </View>
             </TouchableOpacity>
           );
@@ -78,28 +150,55 @@ export default function CalendarScreen() {
 
       <Text style={styles.subheader}>Upcoming Sessions</Text>
       <FlatList
-        data={upcomingSessions}
-        keyExtractor={item => item.id}
+        data={sessions}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.sessionList}
+        ListEmptyComponent={
+          !loading && (
+            <Text style={{ color: colors.textSecondary, alignSelf: 'center' }}>
+              No sessions scheduled
+            </Text>
+          )
+        }
         renderItem={({ item }) => {
           const isToday = item.date === currentDate;
+          const range = `${item.start.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          })} – ${item.end.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+          })}`;
           return (
             <TouchableOpacity
               onPress={() => setCurrentDate(item.date)}
-              style={[styles.sessionRow, isToday && styles.highlightRow]}
+              style={[
+                styles.sessionRow,
+                isToday && styles.highlightRow,
+              ]}
             >
-              <View style={[styles.sessionDot, isToday && styles.highlightDot]} />
+              <View
+                style={[
+                  styles.sessionDot,
+                  isToday && styles.highlightDot,
+                ]}
+              />
               <View style={styles.sessionText}>
-                <Text style={[styles.sessionTitle, isToday && styles.highlightTitle]}>
+                <Text
+                  style={[
+                    styles.sessionTitle,
+                    isToday && styles.highlightTitle,
+                  ]}
+                >
                   {item.title}
                 </Text>
                 <Text style={styles.sessionDate}>
-                  {isToday ? 'Today' : new Date(item.date).toLocaleDateString()}
+                  {isToday
+                    ? 'Today'
+                    : new Date(item.date).toLocaleDateString()}
                 </Text>
+                <Text style={styles.sessionRange}>{range}</Text>
               </View>
-              <Text style={[styles.sessionTime, isToday && styles.highlightTitle]}>
-                {item.time}
-              </Text>
             </TouchableOpacity>
           );
         }}
@@ -108,8 +207,9 @@ export default function CalendarScreen() {
   );
 }
 
-const DAY_SIZE = spacing.s7;         // larger circle diameter
-const DOT_SIZE = spacing.s1;                  // small marker dot
+/* ---------- styles ---------- */
+const DAY_SIZE = spacing.s7;
+const DOT_SIZE = spacing.s1;
 
 const styles = StyleSheet.create({
   safe: {
@@ -163,49 +263,49 @@ const styles = StyleSheet.create({
     marginTop: spacing.vs6,
     marginBottom: spacing.vs3,
   },
-  sessionList: {
-    paddingBottom: spacing.vs4,
-  },
+  sessionList: { paddingBottom: spacing.vs4 },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.vs2,
+    paddingVertical: spacing.vs3,
     paddingHorizontal: spacing.s3,
+    borderRadius: spacing.s2,
+    backgroundColor: colors.surface ?? '#fff',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    marginBottom: spacing.vs2,
   },
   highlightRow: {
     backgroundColor: colors.primary + '20',
-    borderRadius: spacing.s2,
   },
   sessionDot: {
-    width: spacing.s3 - spacing.s1/2,
-    height: spacing.s3 - spacing.s1/2,
-    borderRadius: (spacing.s3 - spacing.s1/2) / 2,
+    width: spacing.s3,
+    height: spacing.s3,
+    borderRadius: spacing.s3 / 2,
     backgroundColor: colors.primary,
     marginRight: spacing.s3,
   },
   highlightDot: {
     width: spacing.s3,
     height: spacing.s3,
-    borderRadius: spacing.s3 / 2,
   },
-  sessionText: {
-    flex: 1,
-  },
+  sessionText: { flex: 1 },
   sessionTitle: {
     fontSize: typography.fontMd,
     color: colors.text,
     fontWeight: '600',
   },
-  highlightTitle: {
-    color: colors.primary,
-  },
+  highlightTitle: { color: colors.primary },
   sessionDate: {
     fontSize: typography.fontSm,
     color: colors.textSecondary,
   },
-  sessionTime: {
-    fontSize: typography.fontMd,
+  sessionRange: {
+    fontSize: typography.fontSm,
     color: colors.text,
-    fontWeight: '600',
+    marginTop: 2,
   },
 });

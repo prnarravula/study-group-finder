@@ -7,7 +7,7 @@ initializeApp();
 const db = getFirestore();
 const auth = getAuth();
 
-exports.deleteUnverifiedUsers = onSchedule("every 1 minutes", async () => {
+exports.deleteUnverifiedUsers = onSchedule("every 60 minutes", async () => {
   const snapshot = await db.collection("pendingVerifications").get();
   const now = Date.now();
 
