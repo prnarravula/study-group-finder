@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import EditInfoModal from '../modals/EditInfoModal';
 import { colors, typography, spacing } from '../constants';
-
+import { doc, deleteDoc } from 'firebase/firestore';
 // backend
 import { signOut, deleteUser, sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { auth, db } from '../../backend/firebaseConfig';

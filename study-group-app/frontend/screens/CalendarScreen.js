@@ -13,7 +13,6 @@ import {
   query,
   where,
   onSnapshot,
-  getDocs,
 } from 'firebase/firestore';
 import { db } from '../../backend/firebaseConfig';
 import { AuthContext } from '../../backend/AuthContext';
@@ -41,48 +40,50 @@ export default function CalendarScreen() {
       where('memberIds', 'array-contains', user.uid)
     );
 
-    const unsubGroups = onSnapshot(groupsQ, async (groupSnap) => {
-      const newSessions = [];
+    let sessUnsubs = []; // to clean up each group's listener
 
-      // detach previous listeners
-      const unsubFns = [];
+    // 2. listen for changes in the user's groups
+    const unsubGroups = onSnapshot(groupsQ, (groupSnap) => {
+      // detach previous session listeners
+      sessUnsubs.forEach((fn) => fn());
+      sessUnsubs = [];
 
-      // 2. for each group, listen to its /sessions
-      await Promise.all(
-        groupSnap.docs.map(async (gDoc) => {
-          const gId = gDoc.id;
-          const sessCol = collection(db, 'groups', gId, 'sessions');
+      groupSnap.forEach((gDoc) => {
+        const gId = gDoc.id;
+        const sessCol = collection(db, 'groups', gId, 'sessions');
 
-          const unsubSess = onSnapshot(sessCol, (sessSnap) => {
-            sessSnap.forEach((s) => {
-              const d = s.data();
-              newSessions.push({
-                id: `${gId}-${s.id}`,
-                title: gDoc.data().name ?? gDoc.data().groupName ?? 'Session',
-                date: d.startTime.toDate().toISOString().slice(0, 10),
-                start: d.startTime.toDate(),
-                end: d.endTime.toDate(),
-              });
-              // sort later
-              setSessions(
-                newSessions.sort(
-                  (a, b) => a.start.getTime() - b.start.getTime()
-                )
-              );
-            });
+        // listen to this group's sessions
+        const unsubSess = onSnapshot(sessCol, (sessSnap) => {
+          // build a fresh array for this group's sessions
+          const groupSessions = sessSnap.docs.map((doc) => {
+            const d = doc.data();
+            return {
+              id: `${gId}-${doc.id}`,
+              title: gDoc.data().groupName ?? gDoc.data().name ?? 'Session',
+              date: d.startTime.toDate().toISOString().slice(0, 10),
+              start: d.startTime.toDate(),
+              end: d.endTime.toDate(),
+            };
           });
 
-          unsubFns.push(unsubSess);
-        })
-      );
+          // merge into global sessions state, removing stale entries
+          setSessions((prev) => {
+            const others = prev.filter((s) => !s.id.startsWith(`${gId}-`));
+            return [...others, ...groupSessions].sort(
+              (a, b) => a.start.getTime() - b.start.getTime()
+            );
+          });
+          setLoading(false);
+        });
 
-      setLoading(false);
-
-      // cleanup when component unmounts
-      return () => unsubFns.forEach((fn) => fn && fn());
+        sessUnsubs.push(unsubSess);
+      });
     });
 
-    return () => unsubGroups();
+    return () => {
+      unsubGroups();
+      sessUnsubs.forEach((fn) => fn());
+    };
   }, [user]);
 
   /* ---- marked dates ---- */

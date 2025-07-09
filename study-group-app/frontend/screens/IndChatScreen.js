@@ -293,7 +293,7 @@ export default function IndChatScreen({ route }) {
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? -270 : 10}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? -270 : -230}
         >
           <GiftedChat
             messages={messages}

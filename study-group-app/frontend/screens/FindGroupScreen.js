@@ -29,15 +29,13 @@ import uvaCourses from '../../data/uvaCourses';
 
 export default function FindGroupScreen({ navigation }) {
   const { user } = useContext(AuthContext);
+  const inputRef = useRef(null);
 
-  // state
   const [subject, setSubject] = useState('');
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [publicGroups, setPublicGroups] = useState([]);
   const [joinCode, setJoinCode] = useState('');
-  const inputRef = useRef(null);
 
-  // add a subject chip
   const onAdd = () => {
     const trimmed = subject.trim().toUpperCase();
     if (!uvaCourses.includes(trimmed)) {
@@ -51,12 +49,10 @@ export default function FindGroupScreen({ navigation }) {
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  // remove a chip
   const onRemove = item => {
     setSelectedSubjects(s => s.filter(x => x !== item));
   };
 
-  // search public groups by subject
   const doSearch = async () => {
     if (selectedSubjects.length === 0) {
       setPublicGroups([]);
@@ -79,7 +75,6 @@ export default function FindGroupScreen({ navigation }) {
         }
       });
     }
-    // dedupe
     const uniq = Object.values(
       allResults.reduce((acc, g) => {
         acc[g.id] = g;
@@ -89,7 +84,6 @@ export default function FindGroupScreen({ navigation }) {
     setPublicGroups(uniq);
   };
 
-  // join by code
   const onJoinCode = async () => {
     const code = joinCode.trim();
     if (!code) {
@@ -118,14 +112,12 @@ export default function FindGroupScreen({ navigation }) {
       });
       Alert.alert('Joined!', `You’ve joined "${g.name || g.subject}" successfully.`);
       setJoinCode('');
-      // optionally clear search results or refresh...
     } catch (e) {
       console.error(e);
       Alert.alert('Error', 'Could not join the group. Try again.');
     }
   };
 
-  // render one group card
   const renderGroup = ({ item }) => (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -166,9 +158,10 @@ export default function FindGroupScreen({ navigation }) {
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? spacing.vs12 : spacing.vs8}
+        keyboardVerticalOffset={
+          Platform.OS === 'ios' ? spacing.vs12 : spacing.vs8
+        }
       >
-        {/* Header + chips + search */}
         <View style={styles.headerContainer}>
           <Text style={styles.title}>Find Study Group</Text>
           <Text style={styles.label}>Subject</Text>
@@ -198,7 +191,7 @@ export default function FindGroupScreen({ navigation }) {
               renderItem={({ item }) => (
                 <View style={styles.chip}>
                   <TouchableOpacity onPress={() => onRemove(item)}>
-                    <Ionicons name="close-circle" size={spacing.s4} color={colors.textSecondary}/>
+                    <Ionicons name="close-circle" size={spacing.s4} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <Text style={styles.chipText}>{item}</Text>
                 </View>
@@ -210,7 +203,6 @@ export default function FindGroupScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Results */}
         <FlatList
           data={publicGroups}
           keyExtractor={g => g.id}
@@ -222,7 +214,6 @@ export default function FindGroupScreen({ navigation }) {
           keyboardShouldPersistTaps="handled"
         />
 
-        {/* Join by code footer */}
         <View style={styles.joinWrapper}>
           <Text style={styles.joinHeader}>Join Private Group by Code</Text>
           <View style={styles.joinContainer}>
@@ -297,9 +288,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
   },
-  chipScroll: {
-    marginBottom: spacing.vs3,
-  },
+  chipScroll: { marginBottom: spacing.vs3 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -309,15 +298,8 @@ const styles = StyleSheet.create({
     borderRadius: spacing.s4,
     marginRight: spacing.s2,
   },
-  chipText: {
-    marginLeft: spacing.s1,
-    fontSize: typography.fontMd,
-    color: colors.text,
-  },
-  searchBtn: {
-    alignItems: 'center',
-    marginBottom: spacing.vs2,
-  },
+  chipText: {    marginLeft: spacing.s1,    fontSize: typography.fontMd,    color: colors.text,  },
+  searchBtn: { alignItems: 'center', marginBottom: spacing.vs2 },
 
   listContainer: {
     paddingHorizontal: spacing.s4,
@@ -344,30 +326,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  cardTitle: {
-    fontSize: typography.fontLg,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  cardJoin: {
-    fontSize: typography.fontMd,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  cardBody: {
-    marginTop: spacing.vs2,
-    fontSize: typography.fontMd,
-    color: colors.textSecondary,
-  },
-  cardFooter: {
-    marginTop: spacing.vs3,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  cardMeta: {
-    fontSize: typography.fontSm,
-    color: colors.textSecondary,
-  },
+  cardTitle: { fontSize: typography.fontLg, fontWeight: '600', color: colors.text },
+  cardJoin: { fontSize: typography.fontMd, color: colors.primary, fontWeight: '500' },
+  cardBody: { marginTop: spacing.vs2, fontSize: typography.fontMd, color: colors.textSecondary },
+  cardFooter: { marginTop: spacing.vs3, flexDirection: 'row', justifyContent: 'space-between' },
+  cardMeta: { fontSize: typography.fontSm, color: colors.textSecondary },
 
   joinWrapper: {
     borderTopWidth: 1,
@@ -377,12 +340,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.vs4,
     backgroundColor: colors.surface,
   },
-  joinHeader: {
-    fontSize: typography.fontLg,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: spacing.vs2,
-  },
+  joinHeader: { fontSize: typography.fontLg, fontWeight: '600', color: colors.text, marginBottom: spacing.vs2 },
   joinContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -390,6 +348,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: spacing.s3,
     backgroundColor: colors.background,
+    overflow: 'hidden',
   },
   joinInput: {
     flex: 1,
@@ -400,14 +359,10 @@ const styles = StyleSheet.create({
   },
   joinBtn: {
     paddingHorizontal: spacing.s4,
-    paddingVertical: spacing.vs2,
+    paddingVertical: Platform.OS === 'ios' ? spacing.vs3 : spacing.vs2,
     backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  joinBtnText: {
-    fontSize: typography.fontLg,
-    color: '#fff',
-    fontWeight: '600',
-  },
+  joinBtnText: { fontSize: typography.fontLg, color: '#fff', fontWeight: '600' },
 });

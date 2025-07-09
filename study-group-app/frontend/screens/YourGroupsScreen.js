@@ -143,8 +143,8 @@ export default function YourGroupsScreen({ navigation }) {
         style: 'destructive',
         onPress: async () => {
           try {
+            await deleteDoc(doc(db, 'chats', g.id));
             await deleteDoc(doc(db, 'groups', g.id));
-            await deleteDoc(doc(db, 'chats', g.id)); // small, text-only
           } catch (e) {
             console.error('Delete failed:', e);
             Alert.alert('Error', 'Could not delete.');
@@ -154,37 +154,43 @@ export default function YourGroupsScreen({ navigation }) {
     ]);
   };
 
-  /* ───────── leave group ───────── */
-  const handleLeave = (g) => {
-    if (g.ownerId === user.uid && g.memberIds.length > 1) {
-      return Alert.alert(
-        'Transfer Ownership First',
-        'You are the owner; transfer ownership before leaving.'
-      );
-    }
+/* ───────── leave group ───────── */
+const handleLeave = (g) => {
+  // If user is owner and there are other members, require ownership transfer
+  if (g.ownerId === user.uid && g.memberIds.length > 1) {
+    return Alert.alert(
+      'Transfer Ownership First',
+      'You are the owner; transfer ownership before leaving.'
+    );
+  }
 
-    Alert.alert('Leave Group', `Leave "${g.name}"?`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Leave',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await updateDoc(doc(db, 'groups', g.id), {
-              memberIds: arrayRemove(user.uid),
-              adminIds: arrayRemove(user.uid),
-            });
-            await updateDoc(doc(db, 'chats', g.id), {
-              memberIds: arrayRemove(user.uid),
-            });
-          } catch (e) {
-            console.error('Leave failed:', e);
-            Alert.alert('Error', 'Could not leave.');
-          }
-        },
+  // If user is the only member left, redirect to delete instead
+  if (g.memberIds.length === 1) {
+    return handleDelete(g);
+  }
+
+  Alert.alert('Leave Group', `Leave "${g.name}"?`, [
+    { text: 'Cancel', style: 'cancel' },
+    {
+      text: 'Leave',
+      style: 'destructive',
+      onPress: async () => {
+        try {
+          await updateDoc(doc(db, 'groups', g.id), {
+            memberIds: arrayRemove(user.uid),
+            adminIds: arrayRemove(user.uid),
+          });
+          await updateDoc(doc(db, 'chats', g.id), {
+            memberIds: arrayRemove(user.uid),
+          });
+        } catch (e) {
+          console.error('Leave failed:', e);
+          Alert.alert('Error', 'Could not leave.');
+        }
       },
-    ]);
-  };
+    },
+  ]);
+};
 
   /* ───────── member remove / role change (short-form) ───────── */
   const handleRemoveMember = async (g, m) => {
@@ -295,7 +301,7 @@ const styles = StyleSheet.create({
     paddingTop: spacing.vs3,
     paddingHorizontal: spacing.s4,
   },
-  btn: { flex: 1, marginHorizontal: spacing.s2, paddingHorizontal: spacing.s6 },
+  btn: { flex: 1, marginHorizontal: spacing.s2, paddingHorizontal: spacing.s6, justifyContent: 'center', alignItems: 'center', },
   joinBtn: {
     backgroundColor: 'transparent',
     borderWidth: 1,

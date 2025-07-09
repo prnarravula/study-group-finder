@@ -24,22 +24,24 @@ const VerifyEmailScreen = () => {
     }
   };
 
-  const resendEmail = async () => {
-    try {
-      await refreshUser();
-      if (auth.currentUser.emailVerified) {
-        alert('Already verified!');
-        return;
-      }
-    } catch {}
-
-    try {
-      await sendEmailVerification(auth.currentUser);
-      alert('Verification email sent. Check your inbox or spam folder.');
-    } catch (error) {
-      alert('Failed to send verification email: ' + error.message);
+const resendEmail = async () => {
+  try {
+    await refreshUser();    
+    if (auth.currentUser?.emailVerified) {
+      alert('Already verified!');
+      return;
     }
-  };
+
+    await sendEmailVerification(auth.currentUser);
+    alert('Verification email sent. Check your inbox or spam folder.');
+  } catch (error) {
+    if (error.code === 'auth/too-many-requests') {
+      alert('You’ve requested too many verification emails. Please wait a few minutes and try again.');
+    } else {
+      alert(`Failed to send verification email: ${error.message}`);
+    }
+  }
+};
 
   return (
     <View style={styles.container}>
