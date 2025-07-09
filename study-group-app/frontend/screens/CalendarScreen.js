@@ -18,75 +18,105 @@ import { db } from '../../backend/firebaseConfig';
 import { AuthContext } from '../../backend/AuthContext';
 import { colors, typography, spacing } from '../constants';
 
-/* ----- locale ----- */
+/* ----- locale setup ----- */
 LocaleConfig.locales.en = LocaleConfig.locales[''];
 LocaleConfig.defaultLocale = 'en';
 
 export default function CalendarScreen() {
   const { user } = useContext(AuthContext);
-  const [currentDate, setCurrentDate] = useState(
-    new Date().toISOString().slice(0, 10)
-  );
-  const [sessions, setSessions] = useState([]); // { id, title, date, start, end }
+
+  // “Today” as YYYY-MM-DD in local time
+  const todayStr = new Date().toLocaleDateString('en-CA');
+  const [currentDate, setCurrentDate] = useState(todayStr);
+  const [sessions, setSessions] = useState([]); // flattened array
   const [loading, setLoading] = useState(true);
 
-  /* ---- listen to all groups → sessions ---- */
   useEffect(() => {
     if (!user) return;
 
-    // 1. find every group the user is a member of
     const groupsQ = query(
       collection(db, 'groups'),
       where('memberIds', 'array-contains', user.uid)
     );
 
-    let sessUnsubs = []; // to clean up each group's listener
+    // Will hold our unsubscribe functions
+    let sessUnsubs = [];
+    // Temporary map from groupId → its sessions array
+    let sessionsMap = {};
 
-    // 2. listen for changes in the user's groups
-    const unsubGroups = onSnapshot(groupsQ, (groupSnap) => {
-      // detach previous session listeners
-      sessUnsubs.forEach((fn) => fn());
-      sessUnsubs = [];
+    // 1) Listen for the user’s groups
+    const unsubGroups = onSnapshot(
+      groupsQ,
+      (groupSnap) => {
+        // a) tear down old session listeners
+        sessUnsubs.forEach((unsub) => unsub());
+        sessUnsubs = [];
 
-      groupSnap.forEach((gDoc) => {
-        const gId = gDoc.id;
-        const sessCol = collection(db, 'groups', gId, 'sessions');
+        // b) reset our map & UI
+        sessionsMap = {};
+        setSessions([]);
+        setLoading(true);
 
-        // listen to this group's sessions
-        const unsubSess = onSnapshot(sessCol, (sessSnap) => {
-          // build a fresh array for this group's sessions
-          const groupSessions = sessSnap.docs.map((doc) => {
-            const d = doc.data();
-            return {
-              id: `${gId}-${doc.id}`,
-              title: gDoc.data().groupName ?? gDoc.data().name ?? 'Session',
-              date: d.startTime.toDate().toISOString().slice(0, 10),
-              start: d.startTime.toDate(),
-              end: d.endTime.toDate(),
-            };
-          });
+        // c) for each group, attach a listener on its “sessions” sub-col
+        groupSnap.forEach((gDoc) => {
+          const gId     = gDoc.id;
+          const sessCol = collection(db, 'groups', gId, 'sessions');
 
-          // merge into global sessions state, removing stale entries
-          setSessions((prev) => {
-            const others = prev.filter((s) => !s.id.startsWith(`${gId}-`));
-            return [...others, ...groupSessions].sort(
-              (a, b) => a.start.getTime() - b.start.getTime()
-            );
-          });
-          setLoading(false);
+          const unsubSess = onSnapshot(
+            sessCol,
+            (sessSnap) => {
+              // build this group’s session list
+              const groupSessions = sessSnap.docs.map((d) => {
+                const { startTime, endTime } = d.data();
+                const startDate = startTime.toDate();
+                const endDate   = endTime.toDate();
+
+                return {
+                  id:    `${gId}-${d.id}`,
+                  title: gDoc.data().groupName ?? gDoc.data().name ?? 'Session',
+                  date:  startDate.toLocaleDateString('en-CA'),
+                  start: startDate,
+                  end:   endDate,
+                };
+              });
+
+              // update our map & re-flatten
+              sessionsMap[gId] = groupSessions;
+              const allSessions = Object.values(sessionsMap)
+                .flat()
+                .sort((a, b) => a.start.getTime() - b.start.getTime());
+              setSessions(allSessions);
+              setLoading(false);
+            },
+            (err) => {
+              if (err.code === 'permission-denied') {
+                console.warn(`Ignored sessions.read for new group ${gId}`);
+              } else {
+                console.error('Sessions listener error:', err);
+              }
+            }
+          );
+
+          sessUnsubs.push(unsubSess);
         });
+      },
+      (err) => {
+        if (err.code === 'permission-denied') {
+          console.warn('Ignored groups.read permission error');
+        } else {
+          console.error('Groups listener error:', err);
+        }
+      }
+    );
 
-        sessUnsubs.push(unsubSess);
-      });
-    });
-
+    // cleanup all listeners
     return () => {
       unsubGroups();
       sessUnsubs.forEach((fn) => fn());
     };
   }, [user]);
 
-  /* ---- marked dates ---- */
+  // Build the calendar’s markedDates object
   const markedDates = sessions.reduce((acc, s) => {
     acc[s.date] = { marked: true };
     return acc;
@@ -96,7 +126,6 @@ export default function CalendarScreen() {
     selected: true,
   };
 
-  /* ---- render ---- */
   return (
     <SafeAreaView style={styles.safe}>
       <Text style={styles.header}>Calendar</Text>
@@ -120,7 +149,7 @@ export default function CalendarScreen() {
         }}
         dayComponent={({ date, state, marking }) => {
           const isSelected = marking?.selected;
-          const isMarked = marking?.marked;
+          const isMarked   = marking?.marked;
           return (
             <TouchableOpacity onPress={() => setCurrentDate(date.dateString)}>
               <View
@@ -156,49 +185,33 @@ export default function CalendarScreen() {
         contentContainerStyle={styles.sessionList}
         ListEmptyComponent={
           !loading && (
-            <Text style={{ color: colors.textSecondary, alignSelf: 'center' }}>
-              No sessions scheduled
-            </Text>
+            <Text style={styles.emptyTxt}>No sessions scheduled</Text>
           )
         }
         renderItem={({ item }) => {
           const isToday = item.date === currentDate;
-          const range = `${item.start.toLocaleTimeString([], {
+          const timeRange = `${item.start.toLocaleTimeString([], {
             hour: 'numeric',
             minute: '2-digit',
           })} – ${item.end.toLocaleTimeString([], {
             hour: 'numeric',
             minute: '2-digit',
           })}`;
+
           return (
             <TouchableOpacity
               onPress={() => setCurrentDate(item.date)}
-              style={[
-                styles.sessionRow,
-                isToday && styles.highlightRow,
-              ]}
+              style={[styles.sessionRow, isToday && styles.highlightRow]}
             >
-              <View
-                style={[
-                  styles.sessionDot,
-                  isToday && styles.highlightDot,
-                ]}
-              />
+              <View style={[styles.sessionDot, isToday && styles.highlightDot]} />
               <View style={styles.sessionText}>
-                <Text
-                  style={[
-                    styles.sessionTitle,
-                    isToday && styles.highlightTitle,
-                  ]}
-                >
+                <Text style={[styles.sessionTitle, isToday && styles.highlightTitle]}>
                   {item.title}
                 </Text>
                 <Text style={styles.sessionDate}>
-                  {isToday
-                    ? 'Today'
-                    : new Date(item.date).toLocaleDateString()}
+                  {isToday ? 'Today' : item.start.toLocaleDateString()}
                 </Text>
-                <Text style={styles.sessionRange}>{range}</Text>
+                <Text style={styles.sessionRange}>{timeRange}</Text>
               </View>
             </TouchableOpacity>
           );
@@ -208,7 +221,6 @@ export default function CalendarScreen() {
   );
 }
 
-/* ---------- styles ---------- */
 const DAY_SIZE = spacing.s7;
 const DOT_SIZE = spacing.s1;
 
@@ -265,6 +277,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.vs3,
   },
   sessionList: { paddingBottom: spacing.vs4 },
+  emptyTxt: {
+    color: colors.textSecondary,
+    alignSelf: 'center',
+  },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -290,8 +306,7 @@ const styles = StyleSheet.create({
     marginRight: spacing.s3,
   },
   highlightDot: {
-    width: spacing.s3,
-    height: spacing.s3,
+    backgroundColor: colors.primary,
   },
   sessionText: { flex: 1 },
   sessionTitle: {
@@ -299,7 +314,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '600',
   },
-  highlightTitle: { color: colors.primary },
+  highlightTitle: {
+    color: colors.primary,
+  },
   sessionDate: {
     fontSize: typography.fontSm,
     color: colors.textSecondary,
