@@ -41,7 +41,7 @@ import { AuthContext } from '../../backend/AuthContext';
 import { colors, typography, spacing } from '../constants';
 
 export default function IndChatScreen({ route }) {
-  const { chatId, title } = route.params;   // title = group name fallback
+  const { chatId, title } = route.params;
   const { user } = useContext(AuthContext);
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
@@ -62,8 +62,12 @@ export default function IndChatScreen({ route }) {
   const [endTime, setEndTime] = useState(new Date(Date.now() + 3600000));
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
-  const [startOpen, setStartOpen] = useState(false);
-  const [endOpen, setEndOpen] = useState(false);
+  
+  // Platform-specific date picker states
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [datePickerMode, setDatePickerMode] = useState('date'); // 'date' or 'time'
+  const [currentPickerType, setCurrentPickerType] = useState('start'); // 'start' or 'end'
 
   /* session */
   const [sessionDoc, setSessionDoc] = useState(null);
@@ -182,11 +186,11 @@ export default function IndChatScreen({ route }) {
 
   const handleSave = async () => {
     if (!location.trim() || !description.trim()) {
-      alert('Please fill out every field');
+      Alert.alert('Missing Information', 'Please fill out every field');
       return;
     }
     if (endTime <= startTime) {
-      alert('End time must be after start time');
+      Alert.alert('Invalid Time', 'End time must be after start time');
       return;
     }
     try {
@@ -203,7 +207,37 @@ export default function IndChatScreen({ route }) {
       setDescription('');
     } catch (e) {
       console.error(e);
-      alert('Could not save session.');
+      Alert.alert('Error', 'Could not save session.');
+    }
+  };
+
+  /* ── Android date picker handlers ── */
+  const showDatePicker = (type, mode) => {
+    setCurrentPickerType(type);
+    setDatePickerMode(mode);
+    setShowStartPicker(type === 'start');
+    setShowEndPicker(type === 'end');
+  };
+
+  const onDateChange = (event, selectedDate) => {
+    if (Platform.OS === 'android') {
+      setShowStartPicker(false);
+      setShowEndPicker(false);
+    }
+    
+    if (selectedDate) {
+      if (currentPickerType === 'start') {
+        setStartTime(selectedDate);
+        if (selectedDate >= endTime) {
+          setEndTime(new Date(selectedDate.getTime() + 60 * 60 * 1000));
+        }
+      } else {
+        if (selectedDate <= startTime) {
+          Alert.alert('Invalid Time', 'End time must be after start time');
+          return;
+        }
+        setEndTime(selectedDate);
+      }
     }
   };
 
@@ -218,6 +252,7 @@ export default function IndChatScreen({ route }) {
       textStyle={{ right: { color: colors.white }, left: { color: colors.text } }}
     />
   );
+
   const renderInputToolbar = (p) => (
     <InputToolbar
       {...p}
@@ -225,11 +260,217 @@ export default function IndChatScreen({ route }) {
       primaryStyle={{ alignItems: 'center' }}
     />
   );
+
   const renderSend = (p) => (
     <Send {...p} containerStyle={{ marginRight: spacing.s1, marginBottom: 4 }}>
       <Ionicons name="send" size={24} color={colors.primary} />
     </Send>
   );
+
+  /* ── Platform-specific date picker renderers ── */
+  const renderIOSDatePicker = () => (
+    <>
+      {/* Start picker */}
+      <Text style={styles.label}>Start Time</Text>
+      <View style={styles.iosPickerContainer}>
+        <DateTimePicker
+          value={startTime}
+          mode="datetime"
+          display="compact"
+          onChange={(event, date) => {
+            if (date) {
+              setStartTime(date);
+              if (date >= endTime) {
+                setEndTime(new Date(date.getTime() + 60 * 60 * 1000));
+              }
+            }
+          }}
+          style={styles.iosDatePicker}
+        />
+      </View>
+
+      {/* End picker */}
+      <Text style={styles.label}>End Time</Text>
+      <View style={styles.iosPickerContainer}>
+        <DateTimePicker
+          value={endTime}
+          mode="datetime"
+          display="compact"
+          onChange={(event, date) => {
+            if (date) {
+              if (date <= startTime) {
+                Alert.alert('Invalid Time', 'End time must be after start time');
+                return;
+              }
+              setEndTime(date);
+            }
+          }}
+          style={styles.iosDatePicker}
+        />
+      </View>
+    </>
+  );
+
+  const renderAndroidDatePicker = () => (
+    <>
+      {/* Start time */}
+      <Text style={styles.label}>Start Time</Text>
+      <View style={styles.androidPickerRow}>
+        <TouchableOpacity
+          style={styles.androidPickerButton}
+          onPress={() => showDatePicker('start', 'date')}
+        >
+          <Ionicons name="calendar" size={20} color={colors.primary} />
+          <Text style={styles.androidPickerText}>
+            {startTime.toLocaleDateString()}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.androidPickerButton}
+          onPress={() => showDatePicker('start', 'time')}
+        >
+          <Ionicons name="time" size={20} color={colors.primary} />
+          <Text style={styles.androidPickerText}>
+            {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* End time */}
+      <Text style={styles.label}>End Time</Text>
+      <View style={styles.androidPickerRow}>
+        <TouchableOpacity
+          style={styles.androidPickerButton}
+          onPress={() => showDatePicker('end', 'date')}
+        >
+          <Ionicons name="calendar" size={20} color={colors.primary} />
+          <Text style={styles.androidPickerText}>
+            {endTime.toLocaleDateString()}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.androidPickerButton}
+          onPress={() => showDatePicker('end', 'time')}
+        >
+          <Ionicons name="time" size={20} color={colors.primary} />
+          <Text style={styles.androidPickerText}>
+            {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Android DateTimePicker */}
+      {(showStartPicker || showEndPicker) && (
+        <DateTimePicker
+          value={currentPickerType === 'start' ? startTime : endTime}
+          mode={datePickerMode}
+          display="default"
+          onChange={onDateChange}
+        />
+      )}
+    </>
+  );
+
+  /* ── Platform-specific menu renderer ── */
+  const renderMenu = () => {
+    if (Platform.OS === 'ios') {
+      return (
+        <Menu
+          visible={menuVisible}
+          onDismiss={() => setMenuVisible(false)}
+          anchor={
+            <TouchableOpacity
+              style={styles.headerRight}
+              onPress={() => setMenuVisible(true)}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color={colors.text} />
+            </TouchableOpacity>
+          }
+          contentStyle={styles.menuContent}
+        >
+          <Menu.Item
+            title="Go Back"
+            onPress={() => {
+              setMenuVisible(false);
+              navigation.goBack();
+            }}
+          />
+          <Menu.Item title="Schedule Session" onPress={openSchedule} />
+          {canDeleteSession && (
+            <Menu.Item
+              title="Delete Session"
+              onPress={() => {
+                setMenuVisible(false);
+                confirmDeleteSession();
+              }}
+              titleStyle={{ color: colors.error ?? '#E30425' }}
+            />
+          )}
+        </Menu>
+      );
+    }
+
+    // Android - Simple ActionSheet-style modal
+    return (
+      <>
+        <TouchableOpacity
+          style={styles.headerRight}
+          onPress={() => setMenuVisible(true)}
+        >
+          <Ionicons name="ellipsis-vertical" size={20} color={colors.text} />
+        </TouchableOpacity>
+        
+        <Modal
+          visible={menuVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setMenuVisible(false)}
+        >
+          <TouchableOpacity
+            style={styles.androidMenuOverlay}
+            activeOpacity={1}
+            onPress={() => setMenuVisible(false)}
+          >
+            <View style={styles.androidMenuContainer}>
+              <TouchableOpacity
+                style={styles.androidMenuItem}
+                onPress={() => {
+                  setMenuVisible(false);
+                  navigation.goBack();
+                }}
+              >
+                <Ionicons name="arrow-back" size={20} color={colors.text} />
+                <Text style={styles.androidMenuText}>Go Back</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={styles.androidMenuItem}
+                onPress={openSchedule}
+              >
+                <Ionicons name="calendar" size={20} color={colors.text} />
+                <Text style={styles.androidMenuText}>Schedule Session</Text>
+              </TouchableOpacity>
+              
+              {canDeleteSession && (
+                <TouchableOpacity
+                  style={styles.androidMenuItem}
+                  onPress={() => {
+                    setMenuVisible(false);
+                    confirmDeleteSession();
+                  }}
+                >
+                  <Ionicons name="trash" size={20} color={colors.error ?? '#E30425'} />
+                  <Text style={[styles.androidMenuText, { color: colors.error ?? '#E30425' }]}>
+                    Delete Session
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </>
+    );
+  };
 
   /* ── UI ── */
   return (
@@ -250,42 +491,7 @@ export default function IndChatScreen({ route }) {
               </View>
             </View>
 
-            <Menu
-              visible={menuVisible}
-              onDismiss={() => setMenuVisible(false)}
-              anchor={
-                <TouchableOpacity
-                  style={styles.headerRight}
-                  onPress={() => setMenuVisible(true)}
-                >
-                  <Ionicons
-                    name="ellipsis-vertical"
-                    size={20}
-                    color={colors.text}
-                  />
-                </TouchableOpacity>
-              }
-              contentStyle={styles.menuContent}
-            >
-              <Menu.Item
-                title="Go Back"
-                onPress={() => {
-                  setMenuVisible(false);
-                  navigation.goBack();
-                }}
-              />
-              <Menu.Item title="Schedule Session" onPress={openSchedule} />
-              {canDeleteSession && (
-                <Menu.Item
-                  title="Delete Session"
-                  onPress={() => {
-                    setMenuVisible(false);
-                    confirmDeleteSession();
-                  }}
-                  titleStyle={{ color: colors.error ?? '#E30425' }}
-                />
-              )}
-            </Menu>
+            {renderMenu()}
           </View>
         </View>
 
@@ -312,8 +518,7 @@ export default function IndChatScreen({ route }) {
           />
         </KeyboardAvoidingView>
 
-        {/* Scheduler Modal (unchanged) */}
-        {/* … all the modal code stays exactly the same … */}
+        {/* Schedule Session Modal */}
         <Modal
           visible={modalVisible}
           transparent
@@ -328,71 +533,14 @@ export default function IndChatScreen({ route }) {
               <ScrollView
                 contentContainerStyle={styles.card}
                 keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
               >
                 <Text style={styles.modalTitle}>Schedule Session</Text>
-                {/* pickers + inputs + buttons exactly as before */}
-                {/* Start picker */}
-                <Text style={styles.label}>Start</Text>
-                <TouchableOpacity
-                  style={styles.pickerRow}
-                  onPress={() => setStartOpen(!startOpen)}
-                >
-                  <Ionicons name="calendar" size={20} color={colors.primary} />
-                  <Text style={styles.pickerText}>
-                    {startTime.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-                {startOpen && (
-                  <DateTimePicker
-                    value={startTime}
-                    mode="datetime"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'inline'}
-                    textColor={colors.text}
-                    onChange={(_, d) => {
-                      if (d) {
-                        setStartTime(d);
-                        if (d >= endTime) {
-                          setEndTime(
-                            new Date(d.getTime() + 60 * 60 * 1000)
-                          );
-                        }
-                      }
-                    }}
-                    style={{ marginBottom: spacing.vs2 }}
-                  />
-                )}
+                
+                {/* Platform-specific date pickers */}
+                {Platform.OS === 'ios' ? renderIOSDatePicker() : renderAndroidDatePicker()}
 
-                {/* End picker */}
-                <Text style={styles.label}>End</Text>
-                <TouchableOpacity
-                  style={styles.pickerRow}
-                  onPress={() => setEndOpen(!endOpen)}
-                >
-                  <Ionicons name="calendar" size={20} color={colors.primary} />
-                  <Text style={styles.pickerText}>
-                    {endTime.toLocaleString()}
-                  </Text>
-                </TouchableOpacity>
-                {endOpen && (
-                  <DateTimePicker
-                    value={endTime}
-                    mode="datetime"
-                    display={Platform.OS === 'ios' ? 'spinner' : 'inline'}
-                    textColor={colors.text}
-                    onChange={(_, d) => {
-                      if (d) {
-                        if (d <= startTime) {
-                          Alert.alert('End must come after Start');
-                          return;
-                        }
-                        setEndTime(d);
-                      }
-                    }}
-                    style={{ marginBottom: spacing.vs2 }}
-                  />
-                )}
-
-                {/* location / description / buttons */}
+                {/* Location */}
                 <Text style={styles.label}>Location</Text>
                 <TextInput
                   style={styles.input}
@@ -402,6 +550,7 @@ export default function IndChatScreen({ route }) {
                   placeholderTextColor={colors.gray400}
                 />
 
+                {/* Description */}
                 <Text style={styles.label}>Description</Text>
                 <TextInput
                   style={[styles.input, { height: 80 }]}
@@ -410,14 +559,13 @@ export default function IndChatScreen({ route }) {
                   onChangeText={setDescription}
                   placeholder="Agenda, topics…"
                   placeholderTextColor={colors.gray400}
+                  textAlignVertical="top"
                 />
 
+                {/* Buttons */}
                 <View style={styles.btnRow}>
                   <TouchableOpacity
-                    style={[
-                      styles.btn,
-                      { backgroundColor: colors.gray200 },
-                    ]}
+                    style={[styles.btn, { backgroundColor: colors.gray200 }]}
                     onPress={() => setModalVisible(false)}
                   >
                     <Text style={[styles.btnText, { color: colors.text }]}>
@@ -442,7 +590,7 @@ export default function IndChatScreen({ route }) {
   );
 }
 
-/* ---------- styles (unchanged) ---------- */
+/* ---------- styles ---------- */
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   headerBar: {
@@ -499,7 +647,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cardWrapper: { width: '90%' },
+  cardWrapper: { width: '90%', maxHeight: '80%' },
   card: {
     backgroundColor: colors.surface ?? '#fff',
     borderRadius: 16,
@@ -514,26 +662,18 @@ const styles = StyleSheet.create({
   },
   label: {
     marginTop: spacing.vs2,
-    marginBottom: 4,
+    marginBottom: 8,
     color: colors.text,
     fontSize: typography.fontSm,
+    fontWeight: '500',
   },
-  pickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.gray300,
-    borderRadius: 8,
-    padding: spacing.s2,
-  },
-  pickerText: { marginLeft: spacing.s2, color: colors.text },
   input: {
     borderWidth: 1,
     borderColor: colors.gray300,
     borderRadius: 8,
     padding: spacing.s2,
     color: colors.text,
-    marginTop: spacing.vs1,
+    fontSize: typography.fontMd,
   },
   btnRow: {
     flexDirection: 'row',
@@ -547,4 +687,59 @@ const styles = StyleSheet.create({
     marginLeft: spacing.s2,
   },
   btnText: { fontSize: typography.fontMd, fontWeight: '500' },
+
+  // iOS-specific styles
+  iosPickerContainer: {
+    borderWidth: 1,
+    borderColor: colors.gray300,
+    borderRadius: 8,
+    marginBottom: spacing.vs2,
+    paddingHorizontal: spacing.s2,
+  },
+  iosDatePicker: {
+    height: 120,
+  },
+
+  // Android-specific styles
+  androidPickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing.vs2,
+  },
+  androidPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.gray300,
+    borderRadius: 8,
+    padding: spacing.s2,
+    flex: 0.48,
+  },
+  androidPickerText: {
+    marginLeft: spacing.s2,
+    color: colors.text,
+    fontSize: typography.fontMd,
+  },
+  androidMenuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  androidMenuContainer: {
+    backgroundColor: colors.surface ?? '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: spacing.vs2,
+  },
+  androidMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.vs2,
+    paddingHorizontal: spacing.s4,
+  },
+  androidMenuText: {
+    marginLeft: spacing.s3,
+    fontSize: typography.fontMd,
+    color: colors.text,
+  },
 });

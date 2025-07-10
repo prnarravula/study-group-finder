@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   searchBtn: { alignItems: 'center', marginBottom: spacing.vs2 },
 
   listContainer: {
-    paddingHorizontal: spacing.s4,
+    paddingHorizontal: spacing.s2,
     paddingVertical: spacing.vs4,
   },
   noGroups: {
@@ -311,15 +311,18 @@ const styles = StyleSheet.create({
     marginTop: spacing.vs4,
   },
   card: {
-    backgroundColor: colors.surface,
-    borderRadius: spacing.s4,
-    padding: spacing.s4,
-    marginBottom: spacing.vs3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+   backgroundColor: '#fff',
+   borderWidth: 1,
+   borderColor: colors.border,
+   borderRadius: spacing.s3,
+   padding: spacing.s4,
+  marginVertical: spacing.vs2,
+   // subtle shadow for depth
+   shadowColor: '#000',
+   shadowOffset: { width: 0, height: 1 },
+   shadowOpacity: 0.05,
+   shadowRadius: 1,
+   elevation: 1,
   },
   cardHeader: {
     flexDirection: 'row',
