@@ -17,6 +17,7 @@ import {
   where,
   onSnapshot,
   updateDoc,
+  getDoc,
   arrayRemove,
   arrayUnion,
   doc,
@@ -42,14 +43,15 @@ export default function YourGroupsScreen({ navigation }) {
   /* list */
   const [groups, setGroups] = useState([]);
 
+  /* live groups that include me */
   useEffect(() => {
     if (checking || !user) return;
     const q = query(
       collection(db, 'groups'),
       where('memberIds', 'array-contains', user.uid)
     );
-    return onSnapshot(q, (snap) =>
-      setGroups(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    return onSnapshot(q, snap =>
+      setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() })))
     );
   }, [checking, user]);
 
@@ -67,7 +69,7 @@ export default function YourGroupsScreen({ navigation }) {
     setModalVisible(true);
   };
 
-  const handleCreateSubmit = async (data) => {
+  const handleCreateSubmit = async data => {
     try {
       const joinCode = await generateUniqueJoinCode();
 
@@ -99,7 +101,7 @@ export default function YourGroupsScreen({ navigation }) {
   };
 
   /* ───────── edit group ───────── */
-  const handleEdit = (g) => {
+  const handleEdit = g => {
     setModalMode('edit');
     setEditingGroup(g);
     setModalInitial({
@@ -113,8 +115,9 @@ export default function YourGroupsScreen({ navigation }) {
     setModalVisible(true);
   };
 
-  const handleEditSubmit = async (data) => {
+  const handleEditSubmit = async data => {
     try {
+      /* groups */
       await updateDoc(doc(db, 'groups', editingGroup.id), {
         name: data.name,
         subject: data.subject,
@@ -123,10 +126,12 @@ export default function YourGroupsScreen({ navigation }) {
         maxCountEnabled: data.countEnabled,
         isPublic: data.isPublic,
       });
-      /* keep chat preview name synced */
+
+      /* chats – rename preview */
       await updateDoc(doc(db, 'chats', editingGroup.id), {
         groupName: data.name,
       });
+
       setModalVisible(false);
     } catch (e) {
       console.error('Edit failed:', e);
@@ -135,7 +140,7 @@ export default function YourGroupsScreen({ navigation }) {
   };
 
   /* ───────── delete group & chat ───────── */
-  const handleDelete = (g) => {
+  const handleDelete = g => {
     Alert.alert('Delete Group', `Delete "${g.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -154,59 +159,84 @@ export default function YourGroupsScreen({ navigation }) {
     ]);
   };
 
-/* ───────── leave group ───────── */
-const handleLeave = (g) => {
-  // If user is owner and there are other members, require ownership transfer
-  if (g.ownerId === user.uid && g.memberIds.length > 1) {
-    return Alert.alert(
-      'Transfer Ownership First',
-      'You are the owner; transfer ownership before leaving.'
-    );
-  }
+  /* ───────── leave group ───────── */
+  const handleLeave = g => {
+    if (g.ownerId === user.uid && g.memberIds.length > 1) {
+      return Alert.alert(
+        'Transfer Ownership First',
+        'You are the owner; transfer ownership before leaving.'
+      );
+    }
+    if (g.memberIds.length === 1) return handleDelete(g);
 
-  // If user is the only member left, redirect to delete instead
-  if (g.memberIds.length === 1) {
-    return handleDelete(g);
-  }
+    Alert.alert('Leave Group', `Leave "${g.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Leave',
+        style: 'destructive',
+        onPress: async () => {
+          /* 1️⃣ groups update */
+          try {
+            await updateDoc(doc(db, 'groups', g.id), {
+              memberIds: arrayRemove(user.uid),
+              adminIds: arrayRemove(user.uid),
+            });
+          } catch (e) {
+            console.error('Group leave failed:', e.code, e.message);
+            return Alert.alert('Error', 'Could not leave group.');
+          }
 
-  Alert.alert('Leave Group', `Leave "${g.name}"?`, [
-    { text: 'Cancel', style: 'cancel' },
-    {
-      text: 'Leave',
-      style: 'destructive',
-      onPress: async () => {
-        try {
-          await updateDoc(doc(db, 'groups', g.id), {
-            memberIds: arrayRemove(user.uid),
-            adminIds: arrayRemove(user.uid),
-          });
-          await updateDoc(doc(db, 'chats', g.id), {
-            memberIds: arrayRemove(user.uid),
-          });
-        } catch (e) {
-          console.error('Leave failed:', e);
-          Alert.alert('Error', 'Could not leave.');
-        }
+          /* 2️⃣ chats update – ignore permission failure */
+          try {
+            const chatRef = doc(db, 'chats', g.id);
+            const chatSnap = await getDoc(chatRef);
+            if (
+              chatSnap.exists() &&
+              chatSnap.data()?.memberIds?.includes(user.uid)
+            ) {
+              await updateDoc(chatRef, {
+                memberIds: arrayRemove(user.uid),
+              });
+            }
+          } catch (e) {
+            if (e.code !== 'permission-denied') {
+              console.error('Chat leave warning:', e.code, e.message);
+            }
+          }
+        },
       },
-    },
-  ]);
-};
+    ]);
+  };
 
-  /* ───────── member remove / role change (short-form) ───────── */
+  /* ───────── remove member ───────── */
   const handleRemoveMember = async (g, m) => {
+    /* 1️⃣ groups update */
     try {
       await updateDoc(doc(db, 'groups', g.id), {
         memberIds: arrayRemove(m.uid),
         adminIds: arrayRemove(m.uid),
       });
-      await updateDoc(doc(db, 'chats', g.id), {
-        memberIds: arrayRemove(m.uid),
-      });
+    } catch {
+      return Alert.alert('Error', 'Could not remove.');
+    }
+
+    /* 2️⃣ chats update – ignore permission failure */
+    try {
+      const cRef = doc(db, 'chats', g.id);
+      const cSnap = await getDoc(cRef);
+      if (cSnap.exists() && cSnap.data()?.memberIds?.includes(m.uid)) {
+        await updateDoc(cRef, {
+          memberIds: arrayRemove(m.uid),
+        });
+      }
     } catch (e) {
-      Alert.alert('Error', 'Could not remove.');
+      if (e.code !== 'permission-denied') {
+        console.error('Chat remove warning:', e.code, e.message);
+      }
     }
   };
 
+  /* ───────── change role ───────── */
   const handleChangeRole = async (g, m, action) => {
     if (action === 'toggleAdmin') {
       const isAd = g.adminIds?.includes(m.uid);
@@ -222,12 +252,13 @@ const handleLeave = (g) => {
   };
 
   /* UI */
-  if (checking)
+  if (checking) {
     return (
       <View style={styles.loading}>
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -237,12 +268,12 @@ const handleLeave = (g) => {
 
       <FlatList
         data={groups}
-        keyExtractor={(g) => g.id}
+        keyExtractor={g => g.id}
         renderItem={({ item }) => (
           <GroupCard
             group={item}
             onLeave={handleLeave}
-            onGetCode={(g) => Alert.alert('Code', g.joinCode || '–')}
+            onGetCode={g => Alert.alert('Code', g.joinCode || '–')}
             onDelete={handleDelete}
             onEdit={handleEdit}
             onRemoveMember={handleRemoveMember}
@@ -289,7 +320,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.s4,
     paddingVertical: spacing.vs4,
   },
-  headTxt: { fontSize: typography.font4Xl, fontWeight: 'bold', color: colors.text },
+  headTxt: {
+    fontSize: typography.font4Xl,
+    fontWeight: 'bold',
+    color: colors.text,
+  },
   listC: { paddingHorizontal: spacing.s4, paddingBottom: spacing.vs4 },
   empty: { marginTop: spacing.vs6, alignItems: 'center' },
   emptyTxt: { fontSize: typography.fontMd, color: colors.textSecondary },
@@ -301,7 +336,13 @@ const styles = StyleSheet.create({
     paddingTop: spacing.vs3,
     paddingHorizontal: spacing.s4,
   },
-  btn: { flex: 1, marginHorizontal: spacing.s2, paddingHorizontal: spacing.s6, justifyContent: 'center', alignItems: 'center', },
+  btn: {
+    flex: 1,
+    marginHorizontal: spacing.s2,
+   	paddingHorizontal: spacing.s6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   joinBtn: {
     backgroundColor: 'transparent',
     borderWidth: 1,
